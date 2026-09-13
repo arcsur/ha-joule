@@ -7,7 +7,7 @@
   "integration_type": "device",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/arcsur/ha-joule/issues",
-  "requirements": ["joule-ble>=0.1.0a1"],
+  "requirements": ["joule-ble>=0.1.0a2"],
   "version": "0.1.0",
   "bluetooth": [
     {
