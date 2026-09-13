@@ -1,0 +1,84 @@
+start_cook:
+  name: Start Cook
+  description: Starts heating the water bath to the target temperature with an optional cook timer.
+  fields:
+    device_id:
+      name: Device
+      description: The Joule device to start.
+      selector:
+        device:
+          integration: joule
+    target_temperature:
+      name: Target Temperature
+      description: Water temperature in Celsius.
+      required: true
+      example: 56.5
+      selector:
+        number:
+          min: 20
+          max: 98
+          step: 0.1
+          unit_of_measurement: "°C"
+    cook_time:
+      name: Cook Duration
+      description: Cook duration in minutes.
+      default: 60
+      example: 90
+      selector:
+        number:
+          min: 1
+          max: 4320
+          unit_of_measurement: "min"
+    delayed_start:
+      name: Delayed Start
+      description: Minutes to delay starting the circulator.
+      default: 0
+      example: 0
+      selector:
+        number:
+          min: 0
+          max: 1440
+          unit_of_measurement: "min"
+    holding_temperature:
+      name: Holding Temperature
+      description: Temperature in Celsius to maintain after cooking completes.
+      default: 0
+      example: 50.0
+      selector:
+        number:
+          min: 0
+          max: 98
+          unit_of_measurement: "°C"
+
+drop_food:
+  name: Food Added (Start Timer)
+  description: Confirms food has been added to the preheated water bath and begins the cook timer countdown.
+  fields:
+    device_id:
+      name: Device
+      description: The Joule device.
+      selector:
+        device:
+          integration: joule
+
+clear_error:
+  name: Clear Error
+  description: Clears soft errors or fault conditions on the Joule.
+  fields:
+    device_id:
+      name: Device
+      description: The Joule device.
+      selector:
+        device:
+          integration: joule
+
+identify:
+  name: Identify Device
+  description: Flashes the indicator light on the Joule to identify it.
+  fields:
+    device_id:
+      name: Device
+      description: The Joule device.
+      selector:
+        device:
+          integration: joule

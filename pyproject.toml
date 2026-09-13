@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ha-joule"
+version = "0.1.0"
+description = "Home Assistant integration for ChefSteps and Breville Joule sous vide immersion circulators"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "joule-ble>=0.1.0a1",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]

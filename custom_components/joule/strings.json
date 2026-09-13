@@ -2,22 +2,139 @@
   "config": {
     "step": {
       "user": {
-        "description": "Select the Joule sous vide device to set up.",
+        "title": "Select Joule Device",
+        "description": "Choose a discovered ChefSteps or Breville Joule sous vide to configure:",
         "data": {
           "address": "Device"
         }
       },
       "bluetooth_confirm": {
+        "title": "Set Up Joule",
         "description": "Do you want to set up {name}?"
+      },
+      "pair": {
+        "title": "Pairing Joule",
+        "description": "Connecting to {name}. If the top light illuminates, press the button on top of Joule to confirm pairing."
       }
     },
     "error": {
-      "cannot_connect": "Failed to connect to Joule device",
-      "unknown": "Unexpected error"
+      "cannot_connect": "Failed to connect to the Joule circulator over Bluetooth. Please ensure it is powered on and within range.",
+      "unknown": "An unexpected error occurred during setup."
     },
     "abort": {
-      "already_configured": "Device is already configured",
-      "no_devices_found": "No Joule devices found within Bluetooth range"
+      "already_configured": "This Joule device is already configured in Home Assistant.",
+      "no_devices_found": "No Joule sous vide devices found within Bluetooth range. Ensure your Joule is plugged in."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Joule Configuration Options",
+        "data": {
+          "auto_start_timer": "Auto-start timer when water reaches temperature",
+          "idle_timeout": "Idle disconnect timeout (seconds, 0 to disable)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "climate": {
+      "circulator": {
+        "name": "Circulator"
+      }
+    },
+    "sensor": {
+      "bath_temp": {
+        "name": "Water Temperature"
+      },
+      "cook_status": {
+        "name": "Cook Status",
+        "state": {
+          "idle": "Idle",
+          "pre_heating": "Preheating",
+          "waiting_for_food": "Add Food Now",
+          "cooking": "Cooking",
+          "waiting_for_remove_food": "Ready to Remove",
+          "error": "Error",
+          "unknown": "Unknown"
+        }
+      },
+      "cook_finish_time": {
+        "name": "Cook Finish Time"
+      },
+      "time_remaining": {
+        "name": "Time Remaining"
+      },
+      "heater_temp": {
+        "name": "Heater Temperature"
+      },
+      "upper_board_temp": {
+        "name": "Upper Board Temperature"
+      },
+      "lower_board_temp": {
+        "name": "Lower Board Temperature"
+      },
+      "motor_rpm": {
+        "name": "Motor RPM"
+      },
+      "heater_power": {
+        "name": "Heater Power"
+      },
+      "error_severity": {
+        "name": "Error Severity",
+        "state": {
+          "no_error": "Normal",
+          "soft_error": "Soft Fault",
+          "hard_error": "Hardware Failure"
+        }
+      },
+      "turbo_cook_state": {
+        "name": "Turbo Mode",
+        "state": {
+          "no_turbo": "Standard",
+          "turbo_enabled": "Active",
+          "turbo_timed_out": "Timed Out"
+        }
+      }
+    },
+    "binary_sensor": {
+      "low_water": {
+        "name": "Low Water Level"
+      },
+      "motor_fault": {
+        "name": "Motor Fault"
+      },
+      "heating": {
+        "name": "Heating"
+      }
+    },
+    "button": {
+      "food_added": {
+        "name": "Food Added (Start Timer)"
+      },
+      "identify": {
+        "name": "Identify Device"
+      },
+      "clear_error": {
+        "name": "Clear Error"
+      }
+    },
+    "number": {
+      "target_cook_time": {
+        "name": "Target Cook Time"
+      }
+    },
+    "switch": {
+      "auto_start_timer": {
+        "name": "Auto-start Timer when at Temp"
+      }
+    }
+  },
+  "device_automation": {
+    "trigger_type": {
+      "water_at_temperature": "Water reached target temperature (Add food now)",
+      "cook_completed": "Cook timer finished (Ready to remove food)",
+      "low_water_detected": "Low water level detected"
     }
   }
 }
