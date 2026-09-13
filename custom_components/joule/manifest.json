@@ -1,0 +1,20 @@
+{
+  "domain": "joule",
+  "name": "ChefSteps / Breville Joule",
+  "codeowners": ["@arcsur"],
+  "config_flow": true,
+  "documentation": "https://github.com/arcsur/ha-joule",
+  "integration_type": "device",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/arcsur/ha-joule/issues",
+  "requirements": ["joule-ble>=0.1.0a1"],
+  "version": "0.1.0",
+  "bluetooth": [
+    {
+      "service_uuid": "700b4321-9836-4383-a2b2-31a9098d1473"
+    },
+    {
+      "service_uuid": "c6f2d9e3-49e7-4125-9014-bfc6d669ff00"
+    }
+  ]
+}
