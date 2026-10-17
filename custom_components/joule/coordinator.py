@@ -9,10 +9,10 @@ from typing import Any
 
 from bleak.backends.device import BLEDevice
 from bleak_retry_connector import establish_connection
-from homeassistant.components import bluetooth
+from homeassistant.components import bluetooth, persistent_notification
 from homeassistant.components.bluetooth import BluetoothChange
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_ADDRESS
+from homeassistant.const import CONF_ADDRESS, EVENT_CALL_SERVICE
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -77,6 +77,9 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
         self._idle_timer_cancel: CALLBACK_TYPE | None = None
         self._unsubscribe_client_callbacks: CALLBACK_TYPE | None = None
         self._unsubscribe_bluetooth: CALLBACK_TYPE | None = None
+        self._unsubscribe_service_call: CALLBACK_TYPE | None = None
+        self._notification_id: str = f"joule_error_{self.address.replace(':', '_')}"
+        self._notification_active: bool = False
 
         # Register client callback
         self._unsubscribe_client_callbacks = self.client.register_callback(
@@ -90,6 +93,25 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
             self._async_handle_bluetooth_event,
             {"address": self.address, "connectable": True},
             bluetooth.BluetoothScanningMode.ACTIVE,
+        )
+
+        @callback
+        def _async_handle_service_call(event: Any) -> None:
+            data = getattr(event, "data", {})
+            if (
+                data.get("domain") == "persistent_notification"
+                and data.get("service") == "dismiss"
+                and data.get("service_data", {}).get("notification_id")
+                == self._notification_id
+            ):
+                _LOGGER.info(
+                    "Persistent notification dismissed for Joule (%s); clearing errors on device",
+                    self.address,
+                )
+                self.hass.async_create_task(self.async_clear_errors())
+
+        self._unsubscribe_service_call = self.hass.bus.async_listen(
+            EVENT_CALL_SERVICE, _async_handle_service_call
         )
 
     @callback
@@ -157,7 +179,36 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
                 },
             )
 
-        # 4. Manage idle disconnect timeout
+        # 4. Manage persistent error notification
+        is_error = (
+            state.error_state != ErrorState.NO_ERROR
+            or state.low_water
+            or state.motor_fault
+            or new_step == CookState.ERROR
+        )
+        if is_error and not self._notification_active:
+            self._notification_active = True
+            dev_name = self.entry.data.get("name", f"Joule ({self.address})")
+            err_msg = (
+                "Low water level detected. Please add water to the bath."
+                if state.low_water
+                else f"An error condition was reported: {state.error_state.value}."
+            )
+            persistent_notification.async_create(
+                self.hass,
+                message=(
+                    f"**{dev_name} Error Alert**\n\n{err_msg}\n\n"
+                    "Dismissing this notification will automatically send a Clear Error "
+                    "command to the Joule, or you can use the **Clear Error** button."
+                ),
+                title=f"{dev_name} Alert",
+                notification_id=self._notification_id,
+            )
+        elif not is_error and self._notification_active:
+            self._notification_active = False
+            persistent_notification.async_dismiss(self.hass, self._notification_id)
+
+        # 5. Manage idle disconnect timeout
         if not state.is_cooking:
             self._schedule_idle_disconnect()
         else:
@@ -248,6 +299,9 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
         """Clear software error condition."""
         await self.async_ensure_connected()
         await self.client.clear_errors()
+        if self._notification_active:
+            self._notification_active = False
+            persistent_notification.async_dismiss(self.hass, self._notification_id)
 
     async def async_identify(self) -> None:
         """Identify device."""
@@ -289,6 +343,12 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
     async def async_unload(self) -> None:
         """Clean up coordinator on integration unload."""
         self._cancel_idle_disconnect()
+        if self._unsubscribe_service_call:
+            self._unsubscribe_service_call()
+            self._unsubscribe_service_call = None
+        if self._notification_active:
+            persistent_notification.async_dismiss(self.hass, self._notification_id)
+            self._notification_active = False
         if self._unsubscribe_client_callbacks:
             self._unsubscribe_client_callbacks()
             self._unsubscribe_client_callbacks = None

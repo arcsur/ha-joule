@@ -87,6 +87,7 @@ def _setup_stubs() -> None:
     ha_const.UnitOfTemperature = UnitOfTemperature
     ha_const.UnitOfTime = UnitOfTime
     ha_const.EntityCategory = EntityCategory
+    ha_const.EVENT_CALL_SERVICE = "call_service"
     sys.modules["homeassistant.const"] = ha_const
 
     # homeassistant.core
@@ -320,6 +321,11 @@ def _setup_stubs() -> None:
         pass
     ha_sw.SwitchEntity = SwitchEntity
     sys.modules["homeassistant.components.switch"] = ha_sw
+
+    ha_pn = ModuleType("homeassistant.components.persistent_notification")
+    ha_pn.async_create = MagicMock()
+    ha_pn.async_dismiss = MagicMock()
+    sys.modules["homeassistant.components.persistent_notification"] = ha_pn
 
 
 _setup_stubs()
