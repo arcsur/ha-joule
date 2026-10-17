@@ -12,7 +12,11 @@ dependencies = [
     "joule-ble>=0.1.0a1",
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["custom_components/joule"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 pythonpath = ["."]
+

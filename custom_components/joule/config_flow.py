@@ -23,6 +23,7 @@ from joule_ble import (
     JouleConnectionError,
     JouleError,
     JouleModel,
+    JouleTimeoutError,
 )
 
 from .const import (
@@ -128,28 +129,21 @@ class JouleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         assert self._discovery_info is not None
 
         ble_device = self._discovery_info.device
-        recipient_address: bytes | None = None
-        if self._discovery_info.manufacturer_data:
-            if 345 in self._discovery_info.manufacturer_data:
-                mfg = self._discovery_info.manufacturer_data[345]
-                if len(mfg) > 1:
-                    recipient_address = mfg[1:]
-                elif len(mfg) == 1:
-                    recipient_address = mfg
-
-        client = JouleClient(ble_device, recipient_address=recipient_address)
+        client = JouleClient(ble_device)
 
         try:
             # Connect without auto-starting cook feed so pairing is not blocked
             await client.connect(timeout=15.0, auto_start_feed=False)
             # Identify circulator to read device info
             dev_info = await client.identify()
-            # Perform pairing / key exchange if needed
+            # Perform pairing / key exchange if needed (allow 30s for button press)
             auth_data = None
             try:
-                auth_data = await client.pair_or_authenticate(timeout=15.0)
+                auth_data = await client.pair_or_authenticate(timeout=30.0)
             except JouleAuthenticationError as auth_err:
                 _LOGGER.warning("Authentication skipped or not needed: %s", auth_err)
+            except JouleTimeoutError as time_err:
+                _LOGGER.warning("Key exchange confirmation timed out or not needed: %s", time_err)
 
             title = dev_info.name or self._name
             await client.disconnect()
@@ -163,9 +157,10 @@ class JouleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "firmware_version": dev_info.firmware_version,
             }
             if dev_info.recipient_address:
-                entry_data["recipient_address"] = dev_info.recipient_address.hex()
-            elif recipient_address:
-                entry_data["recipient_address"] = recipient_address.hex()
+                try:
+                    entry_data["recipient_address"] = dev_info.recipient_address.decode("utf-8")
+                except UnicodeDecodeError:
+                    entry_data["recipient_address"] = dev_info.recipient_address.hex()
 
             if auth_data and auth_data.secret_key:
                 entry_data["auth_key"] = auth_data.secret_key.hex()
@@ -174,7 +169,7 @@ class JouleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 title=title,
                 data=entry_data,
             )
-        except (JouleConnectionError, TimeoutError):
+        except (JouleConnectionError, TimeoutError, JouleTimeoutError):
             errors["base"] = "cannot_connect"
         except Exception as err:
             _LOGGER.exception("Unexpected error during Joule pairing: %s", err)

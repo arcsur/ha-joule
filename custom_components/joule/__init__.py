@@ -48,11 +48,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     recipient_raw = entry.data.get("recipient_address")
     recipient_address: bytes | None = None
-    if recipient_raw and isinstance(recipient_raw, str):
-        try:
-            recipient_address = bytes.fromhex(recipient_raw)
-        except ValueError:
-            recipient_address = recipient_raw.encode()
+    if recipient_raw:
+        if isinstance(recipient_raw, str):
+            recipient_address = recipient_raw.encode("utf-8")
+        elif isinstance(recipient_raw, (bytes, bytearray)):
+            recipient_address = bytes(recipient_raw)
 
     client = JouleClient(
         ble_device,
