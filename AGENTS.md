@@ -14,10 +14,14 @@ The integration manages two hardware profiles differently:
    - Discovered via service UUID `700b4321-9836-4383-a2b2-31a9098d1473`.
    - **No Key Exchange**: Onboarding immediately identifies the device without running cryptographic key exchange.
    - **No Required Button Press**: Pairing does not require the physical top button to be pressed.
+   - **KeepAlive Loop**: Firmware drops connection every 10–15s if idle; `joule-ble` maintains a periodic 3.0s `KeepAlive` loop.
+   - **No BeginLiveFeed**: Live telemetry is pushed via `CirculatorDataPoint` notifications; never send `BeginLiveFeed` to ChefSteps hardware.
+   - **CirculatorProgram Fields**: `StartProgramRequest` must only populate optional fields (`cookTime`, `holdingTemperature`, `delayedStart`) when actively used; setting 0.0 or 0 causes firmware rejection.
 
 2. **Breville Joule Turbo (`CS30001`)**
    - Discovered via service UUID `c6f2d9e3-49e7-4125-9014-bfc6d669ff00`.
    - **Key Exchange Required**: Session authentication requires key exchange and stores `auth_key` in the config entry data.
+   - **Live Feed Required**: Requires `BeginLiveFeed` request on connect to start streaming telemetry.
 
 ---
 
