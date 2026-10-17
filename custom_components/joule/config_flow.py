@@ -157,7 +157,7 @@ class JouleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
             # Perform pairing / key exchange only if required by device profile (Breville Joule Turbo)
             auth_data = None
-            if client.is_breville_profile:
+            if getattr(client, "is_breville_profile", False):
                 try:
                     auth_data = await client.pair_or_authenticate(timeout=30.0)
                 except JouleAuthenticationError as auth_err:
