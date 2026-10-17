@@ -1,6 +1,7 @@
 """Test coordinator commands call underlying JouleClient properly."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
+
 import pytest
 
 from custom_components.joule.coordinator import JouleDataUpdateCoordinator

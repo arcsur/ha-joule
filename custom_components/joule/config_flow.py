@@ -5,9 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from bleak.backends.device import BLEDevice
+import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.components import bluetooth
 from homeassistant.components.bluetooth import (
     BluetoothServiceInfoBleak,
     async_discovered_service_info,
@@ -15,15 +14,11 @@ from homeassistant.components.bluetooth import (
 from homeassistant.const import CONF_ADDRESS
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
-import voluptuous as vol
-
 from joule_ble import (
     JouleAuthenticationError,
     JouleBluetoothDeviceData,
     JouleClient,
     JouleConnectionError,
-    JouleError,
-    JouleModel,
     JouleTimeoutError,
 )
 
@@ -129,6 +124,12 @@ class JouleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         assert self._discovery_info is not None
 
+        if user_input is None:
+            return self.async_show_form(
+                step_id="pair",
+                description_placeholders={"name": self._name},
+            )
+
         ble_device = self._discovery_info.device
         parser = JouleBluetoothDeviceData()
         disc_device_info = parser.update(
@@ -155,21 +156,17 @@ class JouleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ident_err,
                 )
 
-            # Perform pairing / key exchange if supported by firmware
-            auth_data = None
-            try:
-                auth_data = await client.pair_or_authenticate(timeout=30.0)
-            except JouleAuthenticationError as auth_err:
-                _LOGGER.warning("Authentication skipped or not needed: %s", auth_err)
-            except JouleTimeoutError as time_err:
-                _LOGGER.warning("Key exchange confirmation timed out or not needed: %s", time_err)
+            # Perform pairing / key exchange: prompts user with flashing LED to press top button
+            auth_data = await client.start_key_exchange(timeout=30.0)
 
             # If initial identify query was gated behind pairing, re-try identify now
             if dev_info is None or not dev_info.serial_number:
                 try:
                     dev_info = await client.identify()
                 except Exception as ident_err2:
-                    _LOGGER.warning("Post-auth identify query skipped or timed out: %s", ident_err2)
+                    _LOGGER.warning(
+                        "Post-auth identify query skipped or timed out: %s", ident_err2
+                    )
                     dev_info = client.device_info
 
             title = dev_info.name or self._name
@@ -185,19 +182,30 @@ class JouleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }
             if dev_info.recipient_address:
                 try:
-                    entry_data["recipient_address"] = dev_info.recipient_address.decode("utf-8")
+                    entry_data["recipient_address"] = dev_info.recipient_address.decode(
+                        "utf-8"
+                    )
                 except UnicodeDecodeError:
                     entry_data["recipient_address"] = dev_info.recipient_address.hex()
 
             if auth_data and auth_data.secret_key:
-                entry_data["auth_key"] = auth_data.secret_key.hex()
+                secret_hex = (
+                    auth_data.secret_key.hex()
+                    if isinstance(auth_data.secret_key, bytes)
+                    else str(auth_data.secret_key)
+                )
+                entry_data["auth_key"] = secret_hex
 
             return self.async_create_entry(
                 title=title,
                 data=entry_data,
             )
-        except (JouleConnectionError, TimeoutError, JouleTimeoutError):
+        except JouleTimeoutError:
+            errors["base"] = "pairing_timeout"
+        except (JouleConnectionError, TimeoutError):
             errors["base"] = "cannot_connect"
+        except JouleAuthenticationError:
+            errors["base"] = "pairing_timeout"
         except Exception as err:
             _LOGGER.exception("Unexpected error during Joule pairing: %s", err)
             errors["base"] = "unknown"
@@ -225,7 +233,14 @@ class JouleOptionsFlowHandler(config_entries.OptionsFlow):
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow."""
-        self.config_entry = config_entry
+        self._config_entry = config_entry
+
+    @property
+    def _entry(self) -> config_entries.ConfigEntry:
+        """Return config entry safely across HA core versions."""
+        if hasattr(self, "config_entry") and self.config_entry:
+            return self.config_entry
+        return self._config_entry
 
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
@@ -240,13 +255,13 @@ class JouleOptionsFlowHandler(config_entries.OptionsFlow):
                 {
                     vol.Optional(
                         CONF_AUTO_START_TIMER,
-                        default=self.config_entry.options.get(
+                        default=self._entry.options.get(
                             CONF_AUTO_START_TIMER, DEFAULT_AUTO_START_TIMER
                         ),
                     ): bool,
                     vol.Optional(
                         CONF_IDLE_TIMEOUT,
-                        default=self.config_entry.options.get(
+                        default=self._entry.options.get(
                             CONF_IDLE_TIMEOUT, DEFAULT_IDLE_TIMEOUT
                         ),
                     ): vol.All(vol.Coerce(int), vol.Range(min=0, max=3600)),

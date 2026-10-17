@@ -1,17 +1,30 @@
 """Test entity platforms: climate, sensor, binary_sensor, button, number, switch."""
 
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
-import pytest
+from datetime import datetime
+from unittest.mock import AsyncMock, MagicMock
 
-from joule_ble import CookState, ErrorState, JouleState
+import pytest
+from joule_ble import CookState
+
+from custom_components.joule.binary_sensor import (
+    BINARY_SENSOR_DESCRIPTIONS,
+    JouleBinarySensor,
+)
+from custom_components.joule.button import (
+    JouleClearErrorButton,
+    JouleFoodAddedButton,
+    JouleIdentifyButton,
+    JoulePairButton,
+)
 from custom_components.joule.climate import JouleClimate
-from custom_components.joule.sensor import JouleSensor, JouleCookFinishTimeSensor, SENSOR_DESCRIPTIONS
-from custom_components.joule.binary_sensor import JouleBinarySensor, BINARY_SENSOR_DESCRIPTIONS
-from custom_components.joule.button import JouleFoodAddedButton, JouleIdentifyButton, JouleClearErrorButton, JoulePairButton
-from custom_components.joule.number import JouleCookTimeNumber
-from custom_components.joule.switch import JouleAutoStartTimerSwitch
 from custom_components.joule.coordinator import JouleDataUpdateCoordinator
+from custom_components.joule.number import JouleCookTimeNumber
+from custom_components.joule.sensor import (
+    SENSOR_DESCRIPTIONS,
+    JouleCookFinishTimeSensor,
+    JouleSensor,
+)
+from custom_components.joule.switch import JouleAutoStartTimerSwitch
 
 
 @pytest.fixture

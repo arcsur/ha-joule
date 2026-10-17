@@ -1,10 +1,11 @@
 """Test JouleDataUpdateCoordinator state change and event firing logic."""
 
 import asyncio
-from unittest.mock import AsyncMock, MagicMock, patch
-import pytest
+from unittest.mock import MagicMock
 
+import pytest
 from joule_ble import CookState, JouleState
+
 from custom_components.joule.const import (
     EVENT_COOK_COMPLETED,
     EVENT_LOW_WATER,

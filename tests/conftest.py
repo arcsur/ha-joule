@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import sys
 from enum import Enum, StrEnum
 from pathlib import Path
-import sys
 from types import ModuleType
 from typing import Any, Generic, TypeVar
 from unittest.mock import AsyncMock, MagicMock
@@ -111,11 +111,35 @@ def _setup_stubs() -> None:
     # homeassistant.config_entries
     ha_ce = ModuleType("homeassistant.config_entries")
     class ConfigEntry:
-        pass
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
     class ConfigFlow:
-        pass
+        def __init_subclass__(cls, **kwargs):
+            super().__init_subclass__()
+        def __init__(self):
+            self.context = {}
+            self.hass = MagicMock()
+        def async_show_form(self, **kwargs):
+            return {"type": "form", **kwargs}
+        def async_create_entry(self, **kwargs):
+            return {"type": "create_entry", **kwargs}
+        def async_abort(self, **kwargs):
+            return {"type": "abort", **kwargs}
+        async def async_set_unique_id(self, unique_id, **kwargs):
+            self.unique_id = unique_id
+        def _abort_if_unique_id_configured(self):
+            pass
+        def _async_current_ids(self):
+            return set()
     class OptionsFlow:
-        pass
+        @property
+        def config_entry(self):
+            return getattr(self, "_config_entry", None)
+        def async_show_form(self, **kwargs):
+            return {"type": "form", **kwargs}
+        def async_create_entry(self, **kwargs):
+            return {"type": "create_entry", **kwargs}
     ha_ce.ConfigEntry = ConfigEntry
     ha_ce.ConfigFlow = ConfigFlow
     ha_ce.OptionsFlow = OptionsFlow
@@ -232,7 +256,7 @@ def _setup_stubs() -> None:
     sys.modules["homeassistant.util"] = ha_util
     import datetime
     ha_dt = ModuleType("homeassistant.util.dt")
-    ha_dt.utcnow = lambda: datetime.datetime.now(datetime.timezone.utc)
+    ha_dt.utcnow = lambda: datetime.datetime.now(datetime.UTC)
     ha_util.dt = ha_dt
     sys.modules["homeassistant.util.dt"] = ha_dt
 
@@ -330,7 +354,7 @@ def _setup_stubs() -> None:
 
 _setup_stubs()
 
-from joule_ble import CookState, ErrorState, JouleClient, JouleModel, JouleState
+from joule_ble import CookState, ErrorState, JouleClient, JouleState
 
 
 @pytest.fixture

@@ -14,11 +14,12 @@
       },
       "pair": {
         "title": "Pairing Joule",
-        "description": "Connecting to {name}. If the top light illuminates, press the button on top of Joule to confirm pairing."
+        "description": "Click Submit to begin pairing with **{name}**. When the top LED light begins flashing, press the button on the top of the Joule within 30 seconds to confirm proximity."
       }
     },
     "error": {
       "cannot_connect": "Failed to connect to the Joule circulator over Bluetooth. Please ensure it is powered on and within range.",
+      "pairing_timeout": "Pairing timed out. The top button on the Joule was not pressed within 30 seconds. Please click Submit to try again.",
       "unknown": "An unexpected error occurred during setup."
     },
     "abort": {

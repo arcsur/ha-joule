@@ -2,28 +2,22 @@
 
 from __future__ import annotations
 
-import asyncio
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime
 from typing import Any
 
 from bleak.backends.device import BLEDevice
-from bleak_retry_connector import establish_connection
 from homeassistant.components import bluetooth, persistent_notification
 from homeassistant.components.bluetooth import BluetoothChange
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ADDRESS, EVENT_CALL_SERVICE
 from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.helpers.event import async_call_later
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-import homeassistant.util.dt as dt_util
-
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from joule_ble import (
     CookState,
     ErrorState,
-    JouleAuthData,
     JouleClient,
-    JouleModel,
     JouleState,
 )
 
@@ -113,6 +107,17 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
         self._unsubscribe_service_call = self.hass.bus.async_listen(
             EVENT_CALL_SERVICE, _async_handle_service_call
         )
+
+        # Establish initial connection in background to stream telemetry immediately
+        async def _initial_connect() -> None:
+            try:
+                await self.async_ensure_connected()
+            except Exception as err:
+                _LOGGER.warning(
+                    "Initial connection to Joule (%s) deferred: %s", self.address, err
+                )
+
+        self.hass.async_create_task(_initial_connect())
 
     @callback
     def _async_handle_bluetooth_event(

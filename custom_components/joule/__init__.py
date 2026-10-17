@@ -9,7 +9,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ADDRESS
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
-
 from joule_ble import JouleAuthData, JouleClient, JouleModel
 
 from .const import CONF_AUTH_SECRET, CONF_AUTH_TOKEN, CONF_MODEL, DOMAIN, PLATFORMS

@@ -17,10 +17,7 @@ from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from joule_ble import CookState
-
 from .const import (
-    DEFAULT_COOK_TIME_MINUTES,
     DEFAULT_TARGET_TEMP_C,
     DOMAIN,
     MAX_TEMP_C,

@@ -1,14 +1,14 @@
 """Test constants and definitions."""
 
 from custom_components.joule.const import (
-    DOMAIN,
     DEFAULT_NAME,
-    PLATFORMS,
-    EVENT_WATER_AT_TEMPERATURE,
+    DOMAIN,
     EVENT_COOK_COMPLETED,
     EVENT_LOW_WATER,
-    MIN_TEMP_C,
+    EVENT_WATER_AT_TEMPERATURE,
     MAX_TEMP_C,
+    MIN_TEMP_C,
+    PLATFORMS,
 )
 
 
