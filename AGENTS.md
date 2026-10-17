@@ -56,7 +56,17 @@
 - Sending `StopCirculatorRequest` to an idle or already-stopped circulator returns `CS_ERROR_INVALID_STATE` (code 8). Treat this as success.
 - Sending `ClearErrorRequest` when no hardware fault is active returns `CS_ERROR_INVALID_STATE` (code 8) or `CS_ERROR_INTERNAL` (code 3). Treat these as successful no-ops.
 
-### 8. Running Tests & Quality Checks
+### 8. Config Flow Pairing & Proximity Verification
+- Always prompt the user before initiating `start_key_exchange(timeout=30.0)` so they are aware that the Joule's LED will flash and they have 30 seconds to physically press the top button.
+- **Never swallow `JouleTimeoutError` in the config flow**: if the user does not press the button in time, display a retryable `pairing_timeout` error in the form. Creating an unverified config entry without an `auth_key` causes the Joule firmware to reject or silently ignore subsequent cook commands (`StartProgramRequest`).
+- Persist the 64-bit secret key in the config entry `data["auth_key"]` (as hex string) so reconnections authenticate seamlessly via `SubmitKeyRequest` without requiring another physical button press.
+- In Home Assistant 2024+, `OptionsFlow.config_entry` is a read-only property; never assign `self.config_entry = ...` directly in `__init__`. Use a private attribute `self._config_entry` and access via a safe property.
+
+### 9. Immediate Background Connection on Integration Setup
+- Schedule a background task in `async_setup()` / `async_setup_entry()` to call `async_ensure_connected()`.
+- On connection, `JouleClient` automatically authenticates with the saved secret key and starts the live cook data feed (`describeFeedRequest` + `beginLiveFeed`), streaming temperature, RPM, and status to immediately populate all Home Assistant entities.
+
+### 10. Running Tests & Quality Checks
 ```bash
 # Lint & format
 uv run ruff check src tests
