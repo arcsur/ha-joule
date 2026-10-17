@@ -174,7 +174,8 @@ class JouleSensor(CoordinatorEntity[JouleDataUpdateCoordinator], SensorEntity):
             return state.motor_rpm
         if key == "heater_power":
             if state.heater_pwm is not None:
-                return round(state.heater_pwm * 100.0, 1)
+                val = state.heater_pwm if state.heater_pwm > 1.0 else state.heater_pwm * 100.0
+                return round(val, 1)
             return None
         if key == "error_severity":
             return state.error_state.value
