@@ -155,14 +155,15 @@ class JouleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     ident_err,
                 )
 
-            # Perform pairing / key exchange if needed (allow 30s for button press)
+            # Perform pairing / key exchange only if required by device profile (Breville Joule Turbo)
             auth_data = None
-            try:
-                auth_data = await client.pair_or_authenticate(timeout=30.0)
-            except JouleAuthenticationError as auth_err:
-                _LOGGER.warning("Authentication skipped or not needed: %s", auth_err)
-            except JouleTimeoutError as time_err:
-                _LOGGER.warning("Key exchange confirmation timed out or not needed: %s", time_err)
+            if client.is_breville_profile:
+                try:
+                    auth_data = await client.pair_or_authenticate(timeout=30.0)
+                except JouleAuthenticationError as auth_err:
+                    _LOGGER.warning("Authentication skipped or not needed: %s", auth_err)
+                except JouleTimeoutError as time_err:
+                    _LOGGER.warning("Key exchange confirmation timed out or not needed: %s", time_err)
 
             # If initial identify query was gated behind pairing, re-try identify now
             if dev_info is None or not dev_info.serial_number:
