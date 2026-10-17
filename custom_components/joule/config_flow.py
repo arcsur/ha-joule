@@ -128,31 +128,51 @@ class JouleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         assert self._discovery_info is not None
 
         ble_device = self._discovery_info.device
-        client = JouleClient(ble_device)
+        recipient_address: bytes | None = None
+        if self._discovery_info.manufacturer_data:
+            if 345 in self._discovery_info.manufacturer_data:
+                mfg = self._discovery_info.manufacturer_data[345]
+                if len(mfg) > 1:
+                    recipient_address = mfg[1:]
+                elif len(mfg) == 1:
+                    recipient_address = mfg
+
+        client = JouleClient(ble_device, recipient_address=recipient_address)
 
         try:
-            await client.connect(timeout=15.0)
+            # Connect without auto-starting cook feed so pairing is not blocked
+            await client.connect(timeout=15.0, auto_start_feed=False)
             # Identify circulator to read device info
             dev_info = await client.identify()
             # Perform pairing / key exchange if needed
+            auth_data = None
             try:
-                await client.pair_or_authenticate(timeout=15.0)
+                auth_data = await client.pair_or_authenticate(timeout=15.0)
             except JouleAuthenticationError as auth_err:
                 _LOGGER.warning("Authentication skipped or not needed: %s", auth_err)
 
             title = dev_info.name or self._name
             await client.disconnect()
 
+            entry_data: dict[str, Any] = {
+                CONF_ADDRESS: self._discovery_info.address,
+                "name": title,
+                "model": dev_info.model,
+                "serial_number": dev_info.serial_number,
+                "hardware_version": dev_info.hardware_version,
+                "firmware_version": dev_info.firmware_version,
+            }
+            if dev_info.recipient_address:
+                entry_data["recipient_address"] = dev_info.recipient_address.hex()
+            elif recipient_address:
+                entry_data["recipient_address"] = recipient_address.hex()
+
+            if auth_data and auth_data.secret_key:
+                entry_data["auth_key"] = auth_data.secret_key.hex()
+
             return self.async_create_entry(
                 title=title,
-                data={
-                    CONF_ADDRESS: self._discovery_info.address,
-                    "name": title,
-                    "model": dev_info.model,
-                    "serial_number": dev_info.serial_number,
-                    "hardware_version": dev_info.hardware_version,
-                    "firmware_version": dev_info.firmware_version,
-                },
+                data=entry_data,
             )
         except (JouleConnectionError, TimeoutError):
             errors["base"] = "cannot_connect"

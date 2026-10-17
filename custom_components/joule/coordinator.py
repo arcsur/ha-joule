@@ -101,6 +101,10 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
         """Handle updated BLEDevice from Home Assistant Bluetooth scanner."""
         self._ble_device = service_info.device
         self.client._ble_device = service_info.device
+        if service_info.manufacturer_data and 345 in service_info.manufacturer_data:
+            mfg = service_info.manufacturer_data[345]
+            if len(mfg) > 1:
+                self.client._recipient_address = mfg[1:]
 
     @callback
     def _handle_client_update(self, state: JouleState) -> None:

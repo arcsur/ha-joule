@@ -27,14 +27,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not ble_device:
         raise ConfigEntryNotReady(f"Could not find Joule Bluetooth device with address {address}")
 
+    secret_raw = entry.data.get("auth_key") or entry.data.get(CONF_AUTH_SECRET)
+    secret: bytes | str | None = None
+    if secret_raw:
+        if isinstance(secret_raw, str):
+            try:
+                secret = bytes.fromhex(secret_raw)
+            except ValueError:
+                secret = secret_raw
+        else:
+            secret = secret_raw
+
     auth_data = JouleAuthData(
         token=entry.data.get(CONF_AUTH_TOKEN),
-        secret=entry.data.get(CONF_AUTH_SECRET),
+        secret=secret,
+        secret_key=secret if isinstance(secret, bytes) else (secret.encode() if secret else None),
     )
     raw_model = entry.data.get(CONF_MODEL)
     model = JouleModel(raw_model) if raw_model in JouleModel._value2member_map_ else JouleModel.UNKNOWN
 
-    client = JouleClient(ble_device, auth_data=auth_data, model=model)
+    recipient_raw = entry.data.get("recipient_address")
+    recipient_address: bytes | None = None
+    if recipient_raw and isinstance(recipient_raw, str):
+        try:
+            recipient_address = bytes.fromhex(recipient_raw)
+        except ValueError:
+            recipient_address = recipient_raw.encode()
+
+    client = JouleClient(
+        ble_device,
+        auth_data=auth_data,
+        model=model,
+        recipient_address=recipient_address,
+    )
     coordinator = JouleDataUpdateCoordinator(hass, entry, client, ble_device)
     await coordinator.async_setup()
 
