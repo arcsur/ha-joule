@@ -22,6 +22,7 @@ from .const import (
     SERVICE_CLEAR_ERROR,
     SERVICE_DROP_FOOD,
     SERVICE_IDENTIFY,
+    SERVICE_PAIR,
     SERVICE_START_COOK,
 )
 from .coordinator import JouleDataUpdateCoordinator
@@ -99,6 +100,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         coord = _get_coordinator(hass, call)
         await coord.async_identify()
 
+    async def handle_pair(call: ServiceCall) -> None:
+        coord = _get_coordinator(hass, call)
+        await coord.async_pair()
+
     hass.services.async_register(
         DOMAIN, SERVICE_START_COOK, handle_start_cook, schema=START_COOK_SCHEMA
     )
@@ -111,6 +116,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
     hass.services.async_register(
         DOMAIN, SERVICE_IDENTIFY, handle_identify, schema=DEVICE_ACTION_SCHEMA
     )
+    hass.services.async_register(
+        DOMAIN, SERVICE_PAIR, handle_pair, schema=DEVICE_ACTION_SCHEMA
+    )
 
 
 async def async_unload_services(hass: HomeAssistant) -> None:
@@ -120,3 +128,4 @@ async def async_unload_services(hass: HomeAssistant) -> None:
         hass.services.async_remove(DOMAIN, SERVICE_DROP_FOOD)
         hass.services.async_remove(DOMAIN, SERVICE_CLEAR_ERROR)
         hass.services.async_remove(DOMAIN, SERVICE_IDENTIFY)
+        hass.services.async_remove(DOMAIN, SERVICE_PAIR)

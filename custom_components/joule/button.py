@@ -32,6 +32,7 @@ async def async_setup_entry(
             JouleFoodAddedButton(coordinator, entry),
             JouleIdentifyButton(coordinator, entry),
             JouleClearErrorButton(coordinator, entry),
+            JoulePairButton(coordinator, entry),
         ]
     )
 
@@ -120,3 +121,29 @@ class JouleClearErrorButton(
     async def async_press(self) -> None:
         """Clear errors."""
         await self.coordinator.async_clear_errors()
+
+
+class JoulePairButton(
+    CoordinatorEntity[JouleDataUpdateCoordinator], ButtonEntity
+):
+    """Button to pair Joule via BLE key exchange."""
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "pair"
+    _attr_entity_category = EntityCategory.CONFIG
+
+    def __init__(
+        self, coordinator: JouleDataUpdateCoordinator, entry: ConfigEntry
+    ) -> None:
+        """Initialize button."""
+        super().__init__(coordinator)
+        self._attr_unique_id = f"{entry.data['address']}_pair"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.data["address"])},
+            name=entry.data.get("name", "Joule"),
+            manufacturer="ChefSteps / Breville",
+        )
+
+    async def async_press(self) -> None:
+        """Trigger pairing."""
+        await self.coordinator.async_pair()

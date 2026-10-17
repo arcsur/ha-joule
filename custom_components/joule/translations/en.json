@@ -117,6 +117,9 @@
       },
       "clear_error": {
         "name": "Clear Error"
+      },
+      "pair": {
+        "name": "Pair Device (Press Top Button)"
       }
     },
     "number": {

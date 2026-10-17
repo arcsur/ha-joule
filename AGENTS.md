@@ -12,11 +12,13 @@ The integration manages two hardware profiles differently:
 
 1. **ChefSteps Original Joule (`CS10001` / `CS20001`, Hardware `J7`)**
    - Discovered via service UUID `700b4321-9836-4383-a2b2-31a9098d1473`.
-   - **No Key Exchange**: Onboarding immediately identifies the device without running cryptographic key exchange.
-   - **No Required Button Press**: Pairing does not require the physical top button to be pressed.
+   - **Key Exchange & Proximity**: Identification (`IdentifyCirculatorRequest`) is open, but state-changing cooking commands (`StartProgramRequest`) require proximity state to be `verified`. During initial pairing, `StartKeyExchangeRequest` is sent and the user presses the top button on the Joule to confirm proximity. The circulator replies with a secret key which is immediately submitted via `SubmitKeyRequest`. On subsequent reconnections, the client directly submits the stored key via `SubmitKeyRequest`.
    - **KeepAlive Loop**: Firmware drops connection every 10–15s if idle; `joule-ble` maintains a periodic 3.0s `KeepAlive` loop.
    - **No BeginLiveFeed**: Live telemetry is pushed via `CirculatorDataPoint` notifications; never send `BeginLiveFeed` to ChefSteps hardware.
-   - **CirculatorProgram Fields**: `StartProgramRequest` must only populate optional fields (`cookTime`, `holdingTemperature`, `delayedStart`) when actively used; setting 0.0 or 0 causes firmware rejection.
+   - **CirculatorProgram Fields**:
+     - If `cookTime` is present (>0), `programType` **MUST** be set to `AUTOMATIC`.
+     - If manual cook without timer, `programType` **MUST** be `MANUAL`, and `cookTime` **MUST NOT** be set.
+     - Optional fields (`holdingTemperature`, `delayedStart`) must only be populated when actively used; setting 0.0 or 0 causes firmware validation failure.
 
 2. **Breville Joule Turbo (`CS30001`)**
    - Discovered via service UUID `c6f2d9e3-49e7-4125-9014-bfc6d669ff00`.
@@ -27,12 +29,11 @@ The integration manages two hardware profiles differently:
 
 ## Config Flow Rules (`config_flow.py`)
 
-- **Safe Profile Check**:
+- **Pairing & Key Exchange**:
   ```python
-  if getattr(client, "is_breville_profile", False):
-      auth_data = await client.pair_or_authenticate(timeout=30.0)
+  auth_data = await client.pair_or_authenticate(timeout=30.0)
   ```
-  Never unconditionally call `pair_or_authenticate()` without checking `is_breville_profile`. Sinking key exchange requests to a ChefSteps device causes the circulator to drop communication and results in a 30s timeout.
+  Both ChefSteps and Breville devices can pair via `pair_or_authenticate()`. For ChefSteps, the user is prompted to press the Joule's top button to verify proximity during initial key exchange.
 
 - **Non-Blocking Connect**:
   During config flow onboarding, always connect with `auto_start_feed=False` so telemetry subscription does not compete with the initial identification query:

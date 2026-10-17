@@ -217,7 +217,10 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
     ) -> None:
         """Start cooking program."""
         await self.async_ensure_connected()
-        cook_time_sec = (cook_time_minutes or self.target_cook_time_minutes) * 60
+        if cook_time_minutes is not None:
+            cook_time_sec = cook_time_minutes * 60
+        else:
+            cook_time_sec = self.target_cook_time_minutes * 60
         delayed_start_sec = delayed_start_minutes * 60
         await self.client.start_cook(
             target_temp_c=target_temp_c,
@@ -250,6 +253,28 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
         """Identify device."""
         await self.async_ensure_connected()
         await self.client.identify()
+
+    async def async_pair(self, timeout: float = 30.0) -> None:
+        """Initiate physical button pairing / key exchange with the Joule."""
+        await self.async_ensure_connected()
+        _LOGGER.info(
+            "Starting key exchange with Joule (%s). Please press the top button on Joule within %ds to confirm proximity.",
+            self.address,
+            int(timeout),
+        )
+        auth_data = await self.client.start_key_exchange(timeout=timeout)
+        if auth_data and auth_data.secret_key:
+            secret_hex = (
+                auth_data.secret_key.hex()
+                if isinstance(auth_data.secret_key, bytes)
+                else str(auth_data.secret_key)
+            )
+            new_data = {**self.entry.data, "auth_key": secret_hex}
+            self.hass.config_entries.async_update_entry(self.entry, data=new_data)
+            _LOGGER.info(
+                "Successfully paired with Joule (%s) and saved authentication key to config entry",
+                self.address,
+            )
 
     @callback
     def async_set_auto_start_timer(self, enabled: bool) -> None:

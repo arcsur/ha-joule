@@ -48,6 +48,7 @@ SERVICE_START_COOK = "start_cook"
 SERVICE_DROP_FOOD = "drop_food"
 SERVICE_CLEAR_ERROR = "clear_error"
 SERVICE_IDENTIFY = "identify"
+SERVICE_PAIR = "pair"
 
 ATTR_TARGET_TEMP = "target_temperature"
 ATTR_COOK_TIME = "cook_time"

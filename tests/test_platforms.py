@@ -8,7 +8,7 @@ from joule_ble import CookState, ErrorState, JouleState
 from custom_components.joule.climate import JouleClimate
 from custom_components.joule.sensor import JouleSensor, JouleCookFinishTimeSensor, SENSOR_DESCRIPTIONS
 from custom_components.joule.binary_sensor import JouleBinarySensor, BINARY_SENSOR_DESCRIPTIONS
-from custom_components.joule.button import JouleFoodAddedButton, JouleIdentifyButton, JouleClearErrorButton
+from custom_components.joule.button import JouleFoodAddedButton, JouleIdentifyButton, JouleClearErrorButton, JoulePairButton
 from custom_components.joule.number import JouleCookTimeNumber
 from custom_components.joule.switch import JouleAutoStartTimerSwitch
 from custom_components.joule.coordinator import JouleDataUpdateCoordinator
@@ -112,6 +112,7 @@ async def test_buttons(test_setup):
     food_btn = JouleFoodAddedButton(coord, entry)
     identify_btn = JouleIdentifyButton(coord, entry)
     clear_btn = JouleClearErrorButton(coord, entry)
+    pair_btn = JoulePairButton(coord, entry)
 
     # Food button only available in WAITING_FOR_FOOD
     assert food_btn.available is False
@@ -126,6 +127,10 @@ async def test_buttons(test_setup):
 
     await clear_btn.async_press()
     mock_client.clear_errors.assert_called_once()
+
+    mock_client.start_key_exchange = AsyncMock(return_value=MagicMock(secret_key=b"1234"))
+    await pair_btn.async_press()
+    mock_client.start_key_exchange.assert_called_once()
 
 
 @pytest.mark.asyncio
