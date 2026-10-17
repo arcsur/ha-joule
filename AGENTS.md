@@ -48,25 +48,30 @@
 - However, raw GATT characteristic writes are guarded by `_write_lock`, which is released immediately upon write completion.
 - Periodic `KeepAlive` heartbeats (and other fire-and-forget writes) do **NOT** acquire `_stream_lock`; they only acquire `_write_lock`. This prevents KeepAlive starvation and BLE link drops while awaiting long reply operations (e.g. user physical button press during key exchange).
 - When constructing `StartProgramRequest`:
-  - If `cookTime` is active/positive (>0), `programType` **MUST** be set to `AUTOMATIC` (`1`).
-  - If `cookTime` is 0 or not active (manual cook), `programType` **MUST** be set to `MANUAL` (`0`), and `cookTime` **MUST NOT** be serialized into the message.
+  - On ChefSteps (`not self._is_breville_profile`), `circulatorProgram.programType` **MUST ALWAYS** be set to `MANUAL` (`0`), and `cookTime` **MUST NOT** be serialized into the message. Local control manages timers in software. Setting `AUTOMATIC` causes ChefSteps firmware to reject the command.
+  - On Breville (`self._is_breville_profile`), if `cookTime` is active/positive (>0), `programType` is `AUTOMATIC` (`1`). If 0, `programType` is `MANUAL` (`0`) and `cookTime` is omitted.
   - Only populate optional fields (`delayedStart`, `holdingTemperature`) when active/non-zero. Explicitly setting `holdingTemperature=0.0` or `delayedStart=0` can cause firmware validation failure.
+  - On ChefSteps, `StartProgramRequest` and `StopCirculatorRequest` stream envelopes must use empty sender/recipient addresses (`msg.senderAddress = b""`, `msg.recipientAddress = b""`) and a randomized 32-bit handle `random.randint(1, 2**31 - 1)` (matching the official iOS app).
 
-### 7. Tolerant State Handling on Stop and Clear Errors
+### 7. ChefSteps Optimistic Concurrency & Dual Response Recognition
+- `StartProgramRequest` and `StopCirculatorRequest` **MUST** include `feedId` and `sequenceNumber` populated from the latest incoming `CirculatorDataPoint`. Omission causes the firmware to silently drop the request.
+- Dual response recognition: ChefSteps firmware frequently transitions directly into `programStep = PRE_HEAT` without emitting a separate `StartProgramReply` (or `IDLE` without `StopCirculatorReply`). When a `CirculatorDataPoint` reports the expected state change while a command future is pending, resolve the pending future immediately with `CS_SUCCESS`.
+
+### 8. Tolerant State Handling on Stop and Clear Errors
 - Sending `StopCirculatorRequest` to an idle or already-stopped circulator returns `CS_ERROR_INVALID_STATE` (code 8). Treat this as success.
 - Sending `ClearErrorRequest` when no hardware fault is active returns `CS_ERROR_INVALID_STATE` (code 8) or `CS_ERROR_INTERNAL` (code 3). Treat these as successful no-ops.
 
-### 8. Config Flow Pairing & Proximity Verification
+### 9. Config Flow Pairing & Proximity Verification
 - Always prompt the user before initiating `start_key_exchange(timeout=30.0)` so they are aware that the Joule's LED will flash and they have 30 seconds to physically press the top button.
 - **Never swallow `JouleTimeoutError` in the config flow**: if the user does not press the button in time, display a retryable `pairing_timeout` error in the form. Creating an unverified config entry without an `auth_key` causes the Joule firmware to reject or silently ignore subsequent cook commands (`StartProgramRequest`).
 - Persist the 64-bit secret key in the config entry `data["auth_key"]` (as hex string) so reconnections authenticate seamlessly via `SubmitKeyRequest` without requiring another physical button press.
 - In Home Assistant 2024+, `OptionsFlow.config_entry` is a read-only property; never assign `self.config_entry = ...` directly in `__init__`. Use a private attribute `self._config_entry` and access via a safe property.
 
-### 9. Immediate Background Connection on Integration Setup
+### 10. Immediate Background Connection on Integration Setup
 - Schedule a background task in `async_setup()` / `async_setup_entry()` to call `async_ensure_connected()`.
 - On connection, `JouleClient` automatically authenticates with the saved secret key and starts the live cook data feed (`describeFeedRequest` + `beginLiveFeed`), streaming temperature, RPM, and status to immediately populate all Home Assistant entities.
 
-### 10. Running Tests & Quality Checks
+### 11. Running Tests & Quality Checks
 ```bash
 # Lint & format
 uv run ruff check src tests

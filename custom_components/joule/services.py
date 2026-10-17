@@ -63,9 +63,13 @@ def _get_coordinator(
         dev_reg = dr.async_get(hass)
         device = dev_reg.async_get(device_id)
         if device:
-            for entry_id in device.config_entries:
-                if entry_id in hass.data.get(DOMAIN, {}):
-                    return hass.data[DOMAIN][entry_id]
+            # Check primary_config_entry first to prevent deprecation warning in HA 2026+
+            entry_id = getattr(device, "primary_config_entry", None)
+            if entry_id and entry_id in hass.data.get(DOMAIN, {}):
+                return hass.data[DOMAIN][entry_id]
+            for eid in getattr(device, "config_entries", []):
+                if eid in hass.data.get(DOMAIN, {}):
+                    return hass.data[DOMAIN][eid]
 
     # Fallback to the only Joule if one exists
     coordinators: dict[str, JouleDataUpdateCoordinator] = hass.data.get(DOMAIN, {})
