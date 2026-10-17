@@ -50,7 +50,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     recipient_address: bytes | None = None
     if recipient_raw:
         if isinstance(recipient_raw, str):
-            recipient_address = recipient_raw.encode("utf-8")
+            clean = recipient_raw.replace(":", "").replace("-", "")
+            if len(clean) == 12:
+                try:
+                    recipient_address = bytes.fromhex(clean)
+                except ValueError:
+                    recipient_address = recipient_raw.encode("utf-8")
+            else:
+                recipient_address = recipient_raw.encode("utf-8")
         elif isinstance(recipient_raw, (bytes, bytearray)):
             recipient_address = bytes(recipient_raw)
 

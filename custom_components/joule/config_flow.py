@@ -19,6 +19,7 @@ import voluptuous as vol
 
 from joule_ble import (
     JouleAuthenticationError,
+    JouleBluetoothDeviceData,
     JouleClient,
     JouleConnectionError,
     JouleError,
@@ -129,7 +130,16 @@ class JouleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         assert self._discovery_info is not None
 
         ble_device = self._discovery_info.device
-        client = JouleClient(ble_device)
+        parser = JouleBluetoothDeviceData()
+        disc_device_info = parser.update(
+            ble_device, self._discovery_info.advertisement
+        )
+        recipient_addr = (
+            disc_device_info.recipient_address
+            if disc_device_info and disc_device_info.recipient_address
+            else None
+        )
+        client = JouleClient(ble_device, recipient_address=recipient_addr)
 
         try:
             # Connect without auto-starting cook feed so pairing is not blocked
