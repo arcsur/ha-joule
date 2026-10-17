@@ -144,8 +144,17 @@ class JouleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         try:
             # Connect without auto-starting cook feed so pairing is not blocked
             await client.connect(timeout=15.0, auto_start_feed=False)
+
             # Identify circulator to read device info
-            dev_info = await client.identify()
+            dev_info = None
+            try:
+                dev_info = await client.identify()
+            except (JouleTimeoutError, TimeoutError) as ident_err:
+                _LOGGER.debug(
+                    "Initial identify query timed out (%s); attempting key exchange / pairing first...",
+                    ident_err,
+                )
+
             # Perform pairing / key exchange if needed (allow 30s for button press)
             auth_data = None
             try:
@@ -154,6 +163,14 @@ class JouleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 _LOGGER.warning("Authentication skipped or not needed: %s", auth_err)
             except JouleTimeoutError as time_err:
                 _LOGGER.warning("Key exchange confirmation timed out or not needed: %s", time_err)
+
+            # If initial identify query was gated behind pairing, re-try identify now
+            if dev_info is None or not dev_info.serial_number:
+                try:
+                    dev_info = await client.identify()
+                except Exception as ident_err2:
+                    _LOGGER.warning("Post-auth identify query skipped or timed out: %s", ident_err2)
+                    dev_info = client.device_info
 
             title = dev_info.name or self._name
             await client.disconnect()

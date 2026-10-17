@@ -38,6 +38,7 @@ ENV/
 .mypy_cache/
 .ruff_cache/
 .coverage
+uv.lock
 htmlcov/
 
 # OS files
