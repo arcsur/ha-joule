@@ -51,27 +51,34 @@
   - On ChefSteps (`not self._is_breville_profile`), `circulatorProgram.programType` **MUST ALWAYS** be set to `MANUAL` (`0`), and `cookTime` **MUST NOT** be serialized into the message. Local control manages timers in software. Setting `AUTOMATIC` causes ChefSteps firmware to reject the command.
   - On Breville (`self._is_breville_profile`), if `cookTime` is active/positive (>0), `programType` is `AUTOMATIC` (`1`). If 0, `programType` is `MANUAL` (`0`) and `cookTime` is omitted.
   - Only populate optional fields (`delayedStart`, `holdingTemperature`) when active/non-zero. Explicitly setting `holdingTemperature=0.0` or `delayedStart=0` can cause firmware validation failure.
-  - On ChefSteps, `StartProgramRequest` and `StopCirculatorRequest` stream envelopes must use empty sender/recipient addresses (`msg.senderAddress = b""`, `msg.recipientAddress = b""`) and a randomized 32-bit handle `random.randint(1, 2**31 - 1)` (matching the official iOS app).
+- On ChefSteps, stream envelopes for control commands (`StartProgramRequest`, `StopCirculatorRequest`, `ClearErrorRequest`, `DropFoodRequest`, `UpdateProgramRequest`) must use empty sender/recipient addresses (`msg.senderAddress = b""`, `msg.recipientAddress = b""`) and a randomized 32-bit handle `random.randint(1, 2**31 - 1)` (matching the official mobile app).
 
 ### 7. ChefSteps Optimistic Concurrency & Dual Response Recognition
 - `StartProgramRequest` and `StopCirculatorRequest` **MUST** include `feedId` and `sequenceNumber` populated from the latest incoming `CirculatorDataPoint`. Omission causes the firmware to silently drop the request.
+- Stale Concurrency Protection: Reset `_latest_feed_id` and `_latest_seq_num` to 0 on disconnect. When initiating `start_cook` on a freshly connected ChefSteps device, wait for the first live `CirculatorDataPoint` feed session to arrive before dispatching `StartProgramRequest` to prevent `CS_ERROR_NOT_FOUND` (code 5).
 - Dual response recognition: ChefSteps firmware frequently transitions directly into `programStep = PRE_HEAT` without emitting a separate `StartProgramReply` (or `IDLE` without `StopCirculatorReply`). When a `CirculatorDataPoint` reports the expected state change while a command future is pending, resolve the pending future immediately with `CS_SUCCESS`.
 
 ### 8. Tolerant State Handling on Stop and Clear Errors
 - Sending `StopCirculatorRequest` to an idle or already-stopped circulator returns `CS_ERROR_INVALID_STATE` (code 8). Treat this as success.
-- Sending `ClearErrorRequest` when no hardware fault is active returns `CS_ERROR_INVALID_STATE` (code 8) or `CS_ERROR_INTERNAL` (code 3). Treat these as successful no-ops.
+- Sending `ClearErrorRequest` when no hardware fault is active returns `CS_ERROR_INVALID_STATE` (code 8), `CS_ERROR_INTERNAL` (code 3), or `CS_ERROR_NOT_FOUND` (code 5). Treat these as successful no-ops.
+- Proactively call `clear_errors()` before `start_cook()` when an error state was active (e.g. low water level that has been refilled) so the circulator firmware accepts the new program.
 
-### 9. Config Flow Pairing & Proximity Verification
+### 9. Climate Entity Setpoint & Mode Orchestration
+- Maintain a separate local setpoint `_attr_target_temperature` on the climate entity. Changing the setpoint dial while `hvac_mode` is `off` must update the setpoint without prematurely starting cook commands.
+- Only initiate `start_cook` from `async_set_temperature` if `hvac_mode == HEAT` is explicitly passed in `kwargs`.
+- Guard `async_set_hvac_mode(HEAT)`: if the circulator is already actively cooking or starting, treat subsequent mode calls as a no-op to prevent duplicate command collisions resulting in `CS_ERROR_INVALID_STATE` (code 8).
+
+### 10. Config Flow Pairing & Proximity Verification
 - Always prompt the user before initiating `start_key_exchange(timeout=30.0)` so they are aware that the Joule's LED will flash and they have 30 seconds to physically press the top button.
 - **Never swallow `JouleTimeoutError` in the config flow**: if the user does not press the button in time, display a retryable `pairing_timeout` error in the form. Creating an unverified config entry without an `auth_key` causes the Joule firmware to reject or silently ignore subsequent cook commands (`StartProgramRequest`).
 - Persist the 64-bit secret key in the config entry `data["auth_key"]` (as hex string) so reconnections authenticate seamlessly via `SubmitKeyRequest` without requiring another physical button press.
 - In Home Assistant 2024+, `OptionsFlow.config_entry` is a read-only property; never assign `self.config_entry = ...` directly in `__init__`. Use a private attribute `self._config_entry` and access via a safe property.
 
-### 10. Immediate Background Connection on Integration Setup
+### 11. Immediate Background Connection on Integration Setup
 - Schedule a background task in `async_setup()` / `async_setup_entry()` to call `async_ensure_connected()`.
 - On connection, `JouleClient` automatically authenticates with the saved secret key and starts the live cook data feed (`describeFeedRequest` + `beginLiveFeed`), streaming temperature, RPM, and status to immediately populate all Home Assistant entities.
 
-### 11. Running Tests & Quality Checks
+### 12. Running Tests & Quality Checks
 ```bash
 # Lint & format
 uv run ruff check src tests

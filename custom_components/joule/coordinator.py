@@ -273,6 +273,17 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
     ) -> None:
         """Start cooking program."""
         await self.async_ensure_connected()
+        if self.client.state.has_error:
+            _LOGGER.info(
+                "Joule (%s) reported active error state (%s); clearing errors before starting cook",
+                self.address,
+                self.client.state.error_state.value,
+            )
+            try:
+                await self.client.clear_errors()
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Pre-start clear_errors skipped/failed: %s", err)
+
         if cook_time_minutes is not None:
             cook_time_sec = cook_time_minutes * 60
         else:

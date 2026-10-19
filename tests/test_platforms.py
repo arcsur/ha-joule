@@ -71,11 +71,29 @@ async def test_climate_entity(test_setup):
 
     # Status when idle
     coord.data.program_step = CookState.IDLE
+    coord.data.target_temp_c = None
     assert climate.hvac_mode == "off"
 
-    # Turn on starts cooking
+    # Setting temperature when idle adjusts target_temperature without starting cook
+    mock_client.start_cook.reset_mock()
+    await climate.async_set_temperature(temperature=52.0)
+    assert climate.target_temperature == 52.0
+    mock_client.start_cook.assert_not_called()
+
+    # Turn on starts cooking with dialed setpoint
     await climate.async_turn_on()
-    mock_client.start_cook.assert_called_once()
+    mock_client.start_cook.assert_called_once_with(
+        target_temp_c=52.0,
+        cook_time_seconds=3600,
+        delayed_start_seconds=0,
+        holding_temp_c=0.0,
+    )
+
+    # Calling async_set_hvac_mode(heat) when already cooking does not double-call start_cook
+    coord.data.program_step = CookState.PRE_HEATING
+    mock_client.start_cook.reset_mock()
+    await climate.async_set_hvac_mode("heat")
+    mock_client.start_cook.assert_not_called()
 
 
 def test_sensor_entities(test_setup):

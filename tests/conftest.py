@@ -263,7 +263,8 @@ def _setup_stubs() -> None:
     # Components: climate, sensor, binary_sensor, button, number, switch
     ha_clim = ModuleType("homeassistant.components.climate")
     class ClimateEntity:
-        pass
+        def async_write_ha_state(self):
+            pass
     class ClimateEntityFeature:
         TARGET_TEMPERATURE = 1
         TURN_ON = 2
@@ -275,10 +276,12 @@ def _setup_stubs() -> None:
         OFF = "off"
         HEATING = "heating"
         IDLE = "idle"
+    ATTR_HVAC_MODE = "hvac_mode"
     ha_clim.ClimateEntity = ClimateEntity
     ha_clim.ClimateEntityFeature = ClimateEntityFeature
     ha_clim.HVACMode = HVACMode
     ha_clim.HVACAction = HVACAction
+    ha_clim.ATTR_HVAC_MODE = ATTR_HVAC_MODE
     sys.modules["homeassistant.components.climate"] = ha_clim
 
     ha_sens = ModuleType("homeassistant.components.sensor")

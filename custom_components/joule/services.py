@@ -63,8 +63,11 @@ def _get_coordinator(
         dev_reg = dr.async_get(hass)
         device = dev_reg.async_get(device_id)
         if device:
-            # Check primary_config_entry first to prevent deprecation warning in HA 2026+
-            entry_id = getattr(device, "primary_config_entry", None)
+            entry_id = getattr(
+                device,
+                "config_entry_id",
+                getattr(device, "primary_config_entry", None),
+            )
             if entry_id and entry_id in hass.data.get(DOMAIN, {}):
                 return hass.data[DOMAIN][entry_id]
             for eid in getattr(device, "config_entries", []):

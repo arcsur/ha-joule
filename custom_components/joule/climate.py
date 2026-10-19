@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from homeassistant.components.climate import (
+    ATTR_HVAC_MODE,
     ClimateEntity,
     ClimateEntityFeature,
     HVACAction,
@@ -45,7 +46,6 @@ class JouleClimate(CoordinatorEntity[JouleDataUpdateCoordinator], ClimateEntity)
     _attr_min_temp = MIN_TEMP_C
     _attr_max_temp = MAX_TEMP_C
     _attr_target_temperature_step = 0.1
-    _attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT]
     _attr_supported_features = (
         ClimateEntityFeature.TARGET_TEMPERATURE
         | ClimateEntityFeature.TURN_ON
@@ -57,7 +57,9 @@ class JouleClimate(CoordinatorEntity[JouleDataUpdateCoordinator], ClimateEntity)
     ) -> None:
         """Initialize the climate entity."""
         super().__init__(coordinator)
+        self._attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT]
         self._attr_unique_id = f"{entry.data['address']}_climate"
+        self._attr_target_temperature: float = DEFAULT_TARGET_TEMP_C
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.data["address"])},
             name=entry.data.get("name", "Joule"),
@@ -95,7 +97,7 @@ class JouleClimate(CoordinatorEntity[JouleDataUpdateCoordinator], ClimateEntity)
         """Return the target setpoint temperature."""
         if self.coordinator.data and self.coordinator.data.target_temp_c is not None:
             return self.coordinator.data.target_temp_c
-        return DEFAULT_TARGET_TEMP_C
+        return self._attr_target_temperature
 
     async def async_set_temperature(self, **kwargs: Any) -> None:
         """Set new target temperature."""
@@ -103,28 +105,35 @@ class JouleClimate(CoordinatorEntity[JouleDataUpdateCoordinator], ClimateEntity)
         if temp is None:
             return
 
+        self._attr_target_temperature = float(temp)
+        hvac_mode = kwargs.get(ATTR_HVAC_MODE)
+
         if self.coordinator.data and self.coordinator.data.is_cooking:
             await self.coordinator.async_set_temperature(float(temp))
-        else:
+        elif hvac_mode == HVACMode.HEAT:
             await self.coordinator.async_start_cook(
                 target_temp_c=float(temp),
                 cook_time_minutes=self.coordinator.target_cook_time_minutes,
             )
+        self.async_write_ha_state()
 
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new operation mode."""
         if hvac_mode == HVACMode.HEAT:
+            if self.coordinator.data and self.coordinator.data.is_cooking:
+                return
             target = (
                 self.coordinator.data.target_temp_c
                 if self.coordinator.data and self.coordinator.data.target_temp_c
-                else DEFAULT_TARGET_TEMP_C
+                else self._attr_target_temperature
             )
             await self.coordinator.async_start_cook(
                 target_temp_c=target,
                 cook_time_minutes=self.coordinator.target_cook_time_minutes,
             )
         elif hvac_mode == HVACMode.OFF:
-            await self.coordinator.async_stop_cook()
+            if self.coordinator.data and self.coordinator.data.is_cooking:
+                await self.coordinator.async_stop_cook()
 
     async def async_turn_on(self) -> None:
         """Turn on circulator."""
