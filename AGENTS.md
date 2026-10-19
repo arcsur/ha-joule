@@ -83,7 +83,13 @@
 - Schedule a background task in `async_setup()` / `async_setup_entry()` to call `async_ensure_connected()`.
 - On connection, `JouleClient` automatically authenticates with the saved secret key and starts the live cook data feed (`describeFeedRequest` + `beginLiveFeed`), streaming temperature, RPM, and status to immediately populate all Home Assistant entities.
 
-### 12. Running Tests & Quality Checks
+### 12. Model-Specific Entity Partitioning & Orphan Clean-up
+- Hardware feature partitioning: Only expose entities that correspond to physical features supported by the target device.
+  - `turbo_cook_state`: Only register for Breville Joule Turbo (`CS30001`, `coordinator.client.is_breville_profile`). Never instantiate for ChefSteps Original Joule (`CS10001`/`CS20001`), which lacks turbo overshoot algorithms.
+  - Automatic Orphan Registry Clean-up: If an entity is excluded on a specific model, call `ent_reg.async_remove(entity_id)` on setup to purge any legacy or orphaned unique IDs (e.g. `{address}_turbo_cook_state`) from Home Assistant's entity registry.
+  - Active Heating Tracking: `JouleState.is_heating` must remain `True` across `PRE_HEATING`, `WAITING_FOR_FOOD`, and `COOKING` so that `binary_sensor.heating` and `HVACAction.HEATING` accurately reflect active temperature maintenance during cooking without UI flickering.
+
+### 13. Running Tests & Quality Checks
 ```bash
 # Lint & format
 uv run ruff check src tests
