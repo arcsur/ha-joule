@@ -24,9 +24,7 @@ async def async_setup_entry(
     async_add_entities([JouleCookTimeNumber(coordinator, entry)])
 
 
-class JouleCookTimeNumber(
-    CoordinatorEntity[JouleDataUpdateCoordinator], NumberEntity
-):
+class JouleCookTimeNumber(CoordinatorEntity[JouleDataUpdateCoordinator], NumberEntity):
     """Input number entity for target cook time in minutes."""
 
     _attr_has_entity_name = True

@@ -130,7 +130,7 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
         async def _initial_connect() -> None:
             try:
                 await self.async_ensure_connected()
-            except Exception as err:
+            except Exception as err:  # noqa: BLE001
                 _LOGGER.warning(
                     "Initial connection to Joule (%s) deferred: %s", self.address, err
                 )
@@ -163,8 +163,13 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
         self._previous_low_water = new_low_water
 
         # 1. Check for Water At Temperature ("Waiting for food")
-        if old_step != CookState.WAITING_FOR_FOOD and new_step == CookState.WAITING_FOR_FOOD:
-            _LOGGER.info("Joule (%s) reached target temperature! Add food now", self.address)
+        if (
+            old_step != CookState.WAITING_FOR_FOOD
+            and new_step == CookState.WAITING_FOR_FOOD
+        ):
+            _LOGGER.info(
+                "Joule (%s) reached target temperature! Add food now", self.address
+            )
             self.hass.bus.async_fire(
                 EVENT_WATER_AT_TEMPERATURE,
                 {
@@ -180,8 +185,13 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
                 self.hass.async_create_task(self.async_drop_food())
 
         # 2. Check for Cook Completed
-        if old_step == CookState.COOKING and new_step == CookState.WAITING_FOR_REMOVE_FOOD:
-            _LOGGER.info("Joule (%s) cook timer completed! Ready to remove food", self.address)
+        if (
+            old_step == CookState.COOKING
+            and new_step == CookState.WAITING_FOR_REMOVE_FOOD
+        ):
+            _LOGGER.info(
+                "Joule (%s) cook timer completed! Ready to remove food", self.address
+            )
             self.hass.bus.async_fire(
                 EVENT_COOK_COMPLETED,
                 {

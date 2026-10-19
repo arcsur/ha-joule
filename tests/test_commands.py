@@ -3,7 +3,6 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from joule_ble import CookState, ErrorState
 
 from custom_components.joule.coordinator import JouleDataUpdateCoordinator
@@ -23,7 +22,10 @@ async def test_coordinator_commands(mock_joule_client):
     mock_joule_client.state.error_state = ErrorState.NO_ERROR
     coord = JouleDataUpdateCoordinator(hass, entry, mock_joule_client, ble_device)
 
-    with patch("homeassistant.components.bluetooth.async_ble_device_from_address", return_value=ble_device):
+    with patch(
+        "homeassistant.components.bluetooth.async_ble_device_from_address",
+        return_value=ble_device,
+    ):
         # start_cook
         await coord.async_start_cook(target_temp_c=58.0, cook_time_minutes=45)
         mock_joule_client.start_cook.assert_called_once_with(

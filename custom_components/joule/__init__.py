@@ -21,10 +21,14 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up ChefSteps / Breville Joule from a config entry."""
     address: str = entry.data[CONF_ADDRESS]
-    ble_device = bluetooth.async_ble_device_from_address(hass, address, connectable=True)
+    ble_device = bluetooth.async_ble_device_from_address(
+        hass, address, connectable=True
+    )
 
     if not ble_device:
-        raise ConfigEntryNotReady(f"Could not find Joule Bluetooth device with address {address}")
+        raise ConfigEntryNotReady(
+            f"Could not find Joule Bluetooth device with address {address}"
+        )
 
     secret_raw = entry.data.get("auth_key") or entry.data.get(CONF_AUTH_SECRET)
     secret: bytes | str | None = None
@@ -40,10 +44,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     auth_data = JouleAuthData(
         token=entry.data.get(CONF_AUTH_TOKEN),
         secret=secret,
-        secret_key=secret if isinstance(secret, bytes) else (secret.encode() if secret else None),
+        secret_key=secret
+        if isinstance(secret, bytes)
+        else (secret.encode() if secret else None),
     )
     raw_model = entry.data.get(CONF_MODEL)
-    model = JouleModel(raw_model) if raw_model in JouleModel._value2member_map_ else JouleModel.UNKNOWN
+    model = (
+        JouleModel(raw_model)
+        if raw_model in JouleModel._value2member_map_
+        else JouleModel.UNKNOWN
+    )
 
     recipient_raw = entry.data.get("recipient_address")
     recipient_address: bytes | None = None

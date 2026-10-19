@@ -26,13 +26,17 @@ def _setup_stubs() -> None:
     """Register lightweight Home Assistant and voluptuous stubs in sys.modules."""
     if "voluptuous" not in sys.modules:
         vol = ModuleType("voluptuous")
+
         class Schema:
             def __init__(self, *args, **kwargs):
                 pass
+
             def extend(self, *args, **kwargs):
                 return self
+
             def __call__(self, val):
                 return val
+
         vol.Schema = Schema
         vol.Required = lambda *args, **kwargs: args[0] if args else None
         vol.Optional = lambda *args, **kwargs: args[0] if args else None
@@ -100,46 +104,62 @@ def _setup_stubs() -> None:
 
     # homeassistant.exceptions
     ha_exc = ModuleType("homeassistant.exceptions")
+
     class ConfigEntryNotReady(Exception):
         pass
+
     class HomeAssistantError(Exception):
         pass
+
     ha_exc.ConfigEntryNotReady = ConfigEntryNotReady
     ha_exc.HomeAssistantError = HomeAssistantError
     sys.modules["homeassistant.exceptions"] = ha_exc
 
     # homeassistant.config_entries
     ha_ce = ModuleType("homeassistant.config_entries")
+
     class ConfigEntry:
         def __init__(self, **kwargs):
             for k, v in kwargs.items():
                 setattr(self, k, v)
+
     class ConfigFlow:
         def __init_subclass__(cls, **kwargs):
             super().__init_subclass__()
+
         def __init__(self):
             self.context = {}
             self.hass = MagicMock()
+
         def async_show_form(self, **kwargs):
             return {"type": "form", **kwargs}
+
         def async_create_entry(self, **kwargs):
             return {"type": "create_entry", **kwargs}
+
         def async_abort(self, **kwargs):
             return {"type": "abort", **kwargs}
+
         async def async_set_unique_id(self, unique_id, **kwargs):
             self.unique_id = unique_id
+
         def _abort_if_unique_id_configured(self):
             pass
+
         def _async_current_ids(self):
             return set()
+
     class OptionsFlow:
         @property
         def config_entry(self):
             return getattr(self, "_config_entry", None)
+
         def async_show_form(self, **kwargs):
             return {"type": "form", **kwargs}
+
         def async_create_entry(self, **kwargs):
             return {"type": "create_entry", **kwargs}
+
     ha_ce.ConfigEntry = ConfigEntry
     ha_ce.ConfigFlow = ConfigFlow
     ha_ce.OptionsFlow = OptionsFlow
@@ -176,11 +196,14 @@ def _setup_stubs() -> None:
 
     # homeassistant.components.bluetooth
     ha_bt = ModuleType("homeassistant.components.bluetooth")
+
     class BluetoothChange(Enum):
         ADVERTISEMENT = 1
+
     class BluetoothScanningMode(Enum):
         ACTIVE = 1
         PASSIVE = 2
+
     ha_bt.BluetoothChange = BluetoothChange
     ha_bt.BluetoothScanningMode = BluetoothScanningMode
     ha_bt.BluetoothServiceInfoBleak = MagicMock
@@ -196,22 +219,29 @@ def _setup_stubs() -> None:
 
     # homeassistant.helpers.update_coordinator
     ha_uc = ModuleType("homeassistant.helpers.update_coordinator")
+
     class DataUpdateCoordinator(Generic[_T]):
-        def __init__(self, hass, logger, *, name, update_interval=None, update_method=None):
+        def __init__(
+            self, hass, logger, *, name, update_interval=None, update_method=None
+        ):
             self.hass = hass
             self.logger = logger
             self.name = name
             self.data = None
             self.listeners = []
+
         def async_set_updated_data(self, data):
             self.data = data
             for listener in list(self.listeners):
                 listener()
+
     class CoordinatorEntity(Generic[_T]):
         def __init__(self, coordinator):
             self.coordinator = coordinator
+
     class UpdateFailed(Exception):
         pass
+
     ha_uc.DataUpdateCoordinator = DataUpdateCoordinator
     ha_uc.CoordinatorEntity = CoordinatorEntity
     ha_uc.UpdateFailed = UpdateFailed
@@ -224,9 +254,11 @@ def _setup_stubs() -> None:
 
     # homeassistant.helpers.entity
     ha_entity = ModuleType("homeassistant.helpers.entity")
+
     class DeviceInfo(dict):
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
+
     ha_entity.DeviceInfo = DeviceInfo
     sys.modules["homeassistant.helpers.entity"] = ha_entity
 
@@ -239,6 +271,12 @@ def _setup_stubs() -> None:
     ha_dr = ModuleType("homeassistant.helpers.device_registry")
     ha_dr.async_get = MagicMock()
     sys.modules["homeassistant.helpers.device_registry"] = ha_dr
+
+    # homeassistant.helpers.entity_registry
+    ha_er = ModuleType("homeassistant.helpers.entity_registry")
+    ha_er.async_get = MagicMock()
+    ha_helpers.entity_registry = ha_er
+    sys.modules["homeassistant.helpers.entity_registry"] = ha_er
 
     # homeassistant.helpers.trigger
     ha_trig = ModuleType("homeassistant.helpers.trigger")
@@ -255,6 +293,7 @@ def _setup_stubs() -> None:
     ha_util = ModuleType("homeassistant.util")
     sys.modules["homeassistant.util"] = ha_util
     import datetime
+
     ha_dt = ModuleType("homeassistant.util.dt")
     ha_dt.utcnow = lambda: datetime.datetime.now(datetime.UTC)
     ha_util.dt = ha_dt
@@ -262,20 +301,25 @@ def _setup_stubs() -> None:
 
     # Components: climate, sensor, binary_sensor, button, number, switch
     ha_clim = ModuleType("homeassistant.components.climate")
+
     class ClimateEntity:
         def async_write_ha_state(self):
             pass
+
     class ClimateEntityFeature:
         TARGET_TEMPERATURE = 1
         TURN_ON = 2
         TURN_OFF = 4
+
     class HVACMode(StrEnum):
         OFF = "off"
         HEAT = "heat"
+
     class HVACAction(StrEnum):
         OFF = "off"
         HEATING = "heating"
         IDLE = "idle"
+
     ATTR_HVAC_MODE = "hvac_mode"
     ha_clim.ClimateEntity = ClimateEntity
     ha_clim.ClimateEntityFeature = ClimateEntityFeature
@@ -285,19 +329,24 @@ def _setup_stubs() -> None:
     sys.modules["homeassistant.components.climate"] = ha_clim
 
     ha_sens = ModuleType("homeassistant.components.sensor")
+
     class SensorEntity:
         pass
+
     class SensorDeviceClass(StrEnum):
         TEMPERATURE = "temperature"
         ENUM = "enum"
         DURATION = "duration"
         TIMESTAMP = "timestamp"
+
     class SensorStateClass(StrEnum):
         MEASUREMENT = "measurement"
+
     class SensorEntityDescription:
         def __init__(self, **kwargs):
             for k, v in kwargs.items():
                 setattr(self, k, v)
+
     ha_sens.SensorEntity = SensorEntity
     ha_sens.SensorDeviceClass = SensorDeviceClass
     ha_sens.SensorStateClass = SensorStateClass
@@ -305,47 +354,60 @@ def _setup_stubs() -> None:
     sys.modules["homeassistant.components.sensor"] = ha_sens
 
     ha_bs = ModuleType("homeassistant.components.binary_sensor")
+
     class BinarySensorEntity:
         pass
+
     class BinarySensorDeviceClass(StrEnum):
         PROBLEM = "problem"
         RUNNING = "running"
+
     class BinarySensorEntityDescription:
         def __init__(self, **kwargs):
             for k, v in kwargs.items():
                 setattr(self, k, v)
+
     ha_bs.BinarySensorEntity = BinarySensorEntity
     ha_bs.BinarySensorDeviceClass = BinarySensorDeviceClass
     ha_bs.BinarySensorEntityDescription = BinarySensorEntityDescription
     sys.modules["homeassistant.components.binary_sensor"] = ha_bs
 
     ha_btn = ModuleType("homeassistant.components.button")
+
     class ButtonEntity:
         pass
+
     class ButtonDeviceClass(StrEnum):
         IDENTIFY = "identify"
+
     class ButtonEntityDescription:
         def __init__(self, **kwargs):
             for k, v in kwargs.items():
                 setattr(self, k, v)
+
     ha_btn.ButtonEntity = ButtonEntity
     ha_btn.ButtonDeviceClass = ButtonDeviceClass
     ha_btn.ButtonEntityDescription = ButtonEntityDescription
     sys.modules["homeassistant.components.button"] = ha_btn
 
     ha_num = ModuleType("homeassistant.components.number")
+
     class NumberEntity:
         pass
+
     class NumberMode(StrEnum):
         BOX = "box"
         SLIDER = "slider"
+
     ha_num.NumberEntity = NumberEntity
     ha_num.NumberMode = NumberMode
     sys.modules["homeassistant.components.number"] = ha_num
 
     ha_sw = ModuleType("homeassistant.components.switch")
+
     class SwitchEntity:
         pass
+
     ha_sw.SwitchEntity = SwitchEntity
     sys.modules["homeassistant.components.switch"] = ha_sw
 

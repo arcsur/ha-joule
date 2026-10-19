@@ -44,8 +44,12 @@ async def test_config_flow_pair_timeout():
         client_instance = mock_client_cls.return_value
         client_instance.connect = AsyncMock()
         client_instance.disconnect = AsyncMock()
-        client_instance.identify = AsyncMock(return_value=JouleDeviceInfo(model=JouleModel.ORIGINAL_JOULE))
-        client_instance.start_key_exchange = AsyncMock(side_effect=JouleTimeoutError("Key exchange timed out"))
+        client_instance.identify = AsyncMock(
+            return_value=JouleDeviceInfo(model=JouleModel.ORIGINAL_JOULE)
+        )
+        client_instance.start_key_exchange = AsyncMock(
+            side_effect=JouleTimeoutError("Key exchange timed out")
+        )
 
         result = await flow.async_step_pair(user_input={})
 
@@ -103,9 +107,7 @@ async def test_options_flow_handler():
     """Test JouleOptionsFlowHandler doesn't crash on read-only config_entry property."""
     from homeassistant.config_entries import ConfigEntry
 
-    entry = ConfigEntry(
-        options={"auto_start_timer": True, "idle_timeout": 600}
-    )
+    entry = ConfigEntry(options={"auto_start_timer": True, "idle_timeout": 600})
     handler = JouleOptionsFlowHandler(entry)
     result = await handler.async_step_init(user_input=None)
 

@@ -21,15 +21,16 @@ from homeassistant.const import (
     UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from joule_ble import CookState
+from joule_ble import CookState, JouleModel
 
 from .const import DOMAIN
 from .coordinator import JouleDataUpdateCoordinator
 
-SENSOR_DESCRIPTIONS: tuple[SensorEntityDescription, ...] = (
+COMMON_SENSOR_DESCRIPTIONS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
         key="bath_temp",
         translation_key="bath_temp",
@@ -103,6 +104,9 @@ SENSOR_DESCRIPTIONS: tuple[SensorEntityDescription, ...] = (
         options=["no_error", "soft_error", "hard_error"],
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+)
+
+BREVILLE_TURBO_SENSOR_DESCRIPTIONS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
         key="turbo_cook_state",
         translation_key="turbo_cook_state",
@@ -110,6 +114,10 @@ SENSOR_DESCRIPTIONS: tuple[SensorEntityDescription, ...] = (
         options=["no_turbo", "turbo_enabled", "turbo_timed_out"],
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+)
+
+SENSOR_DESCRIPTIONS: tuple[SensorEntityDescription, ...] = (
+    COMMON_SENSOR_DESCRIPTIONS + BREVILLE_TURBO_SENSOR_DESCRIPTIONS
 )
 
 
@@ -120,8 +128,25 @@ async def async_setup_entry(
 ) -> None:
     """Set up Joule sensors from a config entry."""
     coordinator: JouleDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+
+    is_breville = (
+        coordinator.client.is_breville_profile
+        or entry.data.get("model") == JouleModel.JOULE_TURBO
+        or "turbo" in str(entry.data.get("model", "")).lower()
+    )
+
+    descriptions = list(COMMON_SENSOR_DESCRIPTIONS)
+    if is_breville:
+        descriptions.extend(BREVILLE_TURBO_SENSOR_DESCRIPTIONS)
+    else:
+        # Purge any orphaned turbo_cook_state entity from registry for ChefSteps devices
+        ent_reg = er.async_get(hass)
+        turbo_unique_id = f"{entry.data['address']}_turbo_cook_state"
+        if entity_id := ent_reg.async_get_entity_id("sensor", DOMAIN, turbo_unique_id):
+            ent_reg.async_remove(entity_id)
+
     entities: list[SensorEntity] = [
-        JouleSensor(coordinator, entry, desc) for desc in SENSOR_DESCRIPTIONS
+        JouleSensor(coordinator, entry, desc) for desc in descriptions
     ]
     entities.append(JouleCookFinishTimeSensor(coordinator, entry))
     async_add_entities(entities)
@@ -142,11 +167,19 @@ class JouleSensor(CoordinatorEntity[JouleDataUpdateCoordinator], SensorEntity):
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{entry.data['address']}_{description.key}"
+
+        is_breville = (
+            coordinator.client.is_breville_profile
+            or entry.data.get("model") == JouleModel.JOULE_TURBO
+            or "turbo" in str(entry.data.get("model", "")).lower()
+        )
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.data["address"])},
             name=entry.data.get("name", "Joule"),
-            manufacturer="ChefSteps / Breville",
-            model=entry.data.get("model", "Joule"),
+            manufacturer="Breville" if is_breville else "ChefSteps",
+            model=entry.data.get(
+                "model", "Joule Turbo" if is_breville else "Original Joule"
+            ),
         )
 
     @property
@@ -174,7 +207,11 @@ class JouleSensor(CoordinatorEntity[JouleDataUpdateCoordinator], SensorEntity):
             return state.motor_rpm
         if key == "heater_power":
             if state.heater_pwm is not None:
-                val = state.heater_pwm if state.heater_pwm > 1.0 else state.heater_pwm * 100.0
+                val = (
+                    state.heater_pwm
+                    if state.heater_pwm > 1.0
+                    else state.heater_pwm * 100.0
+                )
                 return round(val, 1)
             return None
         if key == "error_severity":
@@ -200,10 +237,18 @@ class JouleCookFinishTimeSensor(
         """Initialize the timestamp sensor."""
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.data['address']}_cook_finish_time"
+        is_breville = (
+            coordinator.client.is_breville_profile
+            or entry.data.get("model") == JouleModel.JOULE_TURBO
+            or "turbo" in str(entry.data.get("model", "")).lower()
+        )
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.data["address"])},
             name=entry.data.get("name", "Joule"),
-            manufacturer="ChefSteps / Breville",
+            manufacturer="Breville" if is_breville else "ChefSteps",
+            model=entry.data.get(
+                "model", "Joule Turbo" if is_breville else "Original Joule"
+            ),
         )
 
     @property

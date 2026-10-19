@@ -145,4 +145,3 @@ async def test_coordinator_persistent_notification_and_dismissal(mock_joule_clie
 
     # Verify clear_errors was called on client
     mock_joule_client.clear_errors.assert_called_once()
-

@@ -20,9 +20,14 @@ from custom_components.joule.climate import JouleClimate
 from custom_components.joule.coordinator import JouleDataUpdateCoordinator
 from custom_components.joule.number import JouleCookTimeNumber
 from custom_components.joule.sensor import (
+    BREVILLE_TURBO_SENSOR_DESCRIPTIONS,
+    COMMON_SENSOR_DESCRIPTIONS,
     SENSOR_DESCRIPTIONS,
     JouleCookFinishTimeSensor,
     JouleSensor,
+)
+from custom_components.joule.sensor import (
+    async_setup_entry as async_setup_sensor_entry,
 )
 from custom_components.joule.switch import JouleAutoStartTimerSwitch
 
@@ -53,7 +58,7 @@ def test_setup(mock_joule_client):
 @pytest.mark.asyncio
 async def test_climate_entity(test_setup):
     """Test climate entity behaviors."""
-    coord, entry, hass, mock_client = test_setup
+    coord, entry, _hass, mock_client = test_setup
     climate = JouleClimate(coord, entry)
 
     # Status when cooking
@@ -104,9 +109,11 @@ async def test_climate_entity(test_setup):
 
 def test_sensor_entities(test_setup):
     """Test telemetry sensors report correct values from state."""
-    coord, entry, hass, mock_client = test_setup
+    coord, entry, _hass, _mock_client = test_setup
 
-    sensors = {desc.key: JouleSensor(coord, entry, desc) for desc in SENSOR_DESCRIPTIONS}
+    sensors = {
+        desc.key: JouleSensor(coord, entry, desc) for desc in SENSOR_DESCRIPTIONS
+    }
 
     assert sensors["bath_temp"].native_value == 55.0
     assert sensors["cook_status"].native_value == "cooking"
@@ -125,14 +132,90 @@ def test_sensor_entities(test_setup):
     assert isinstance(val, datetime)
 
 
+@pytest.mark.asyncio
+async def test_sensor_platform_setup_chefsteps(test_setup):
+    """Test ChefSteps device excludes turbo_cook_state and purges orphaned registry entry."""
+    coord, entry, hass, mock_client = test_setup
+    mock_client.is_breville_profile = False
+    entry.data = {**entry.data, "model": "Original Joule"}
+
+    hass.data = {"joule": {entry.entry_id: coord}}
+
+    mock_ent_reg = MagicMock()
+    mock_ent_reg.async_get_entity_id.return_value = "sensor.kitchen_joule_turbo_mode"
+
+    added_entities = []
+
+    def mock_add_entities(entities):
+        added_entities.extend(entities)
+
+    from unittest.mock import patch
+
+    with patch(
+        "homeassistant.helpers.entity_registry.async_get", return_value=mock_ent_reg
+    ):
+        await async_setup_sensor_entry(hass, entry, mock_add_entities)
+
+    # Must call async_remove on the orphaned entity
+    mock_ent_reg.async_get_entity_id.assert_called_once_with(
+        "sensor", "joule", f"{entry.data['address']}_turbo_cook_state"
+    )
+    mock_ent_reg.async_remove.assert_called_once_with("sensor.kitchen_joule_turbo_mode")
+
+    # turbo_cook_state must NOT be added
+    keys = [
+        getattr(e, "entity_description", None) and e.entity_description.key
+        for e in added_entities
+    ]
+    assert "turbo_cook_state" not in keys
+    assert "bath_temp" in keys
+    assert (
+        len(added_entities) == len(COMMON_SENSOR_DESCRIPTIONS) + 1
+    )  # common + finish_time
+
+
+@pytest.mark.asyncio
+async def test_sensor_platform_setup_breville(test_setup):
+    """Test Breville Joule Turbo includes turbo_cook_state."""
+    coord, entry, hass, mock_client = test_setup
+    mock_client.is_breville_profile = True
+    entry.data = {**entry.data, "model": "Joule Turbo"}
+
+    hass.data = {"joule": {entry.entry_id: coord}}
+
+    added_entities = []
+
+    def mock_add_entities(entities):
+        added_entities.extend(entities)
+
+    await async_setup_sensor_entry(hass, entry, mock_add_entities)
+
+    keys = [
+        getattr(e, "entity_description", None) and e.entity_description.key
+        for e in added_entities
+    ]
+    assert "turbo_cook_state" in keys
+    assert "bath_temp" in keys
+    assert (
+        len(added_entities)
+        == len(COMMON_SENSOR_DESCRIPTIONS) + len(BREVILLE_TURBO_SENSOR_DESCRIPTIONS) + 1
+    )
+
+
 def test_binary_sensors(test_setup):
     """Test binary sensors."""
-    coord, entry, hass, mock_client = test_setup
+    coord, entry, _hass, _mock_client = test_setup
 
-    bin_sensors = {desc.key: JouleBinarySensor(coord, entry, desc) for desc in BINARY_SENSOR_DESCRIPTIONS}
+    bin_sensors = {
+        desc.key: JouleBinarySensor(coord, entry, desc)
+        for desc in BINARY_SENSOR_DESCRIPTIONS
+    }
 
     assert bin_sensors["low_water"].is_on is False
     assert bin_sensors["motor_fault"].is_on is False
+    assert bin_sensors["heating"].is_on is True  # Active during COOKING
+
+    coord.data.program_step = CookState.IDLE
     assert bin_sensors["heating"].is_on is False
 
     coord.data.low_water = True
@@ -144,7 +227,7 @@ def test_binary_sensors(test_setup):
 @pytest.mark.asyncio
 async def test_buttons(test_setup):
     """Test button entities and availability."""
-    coord, entry, hass, mock_client = test_setup
+    coord, entry, _hass, mock_client = test_setup
 
     food_btn = JouleFoodAddedButton(coord, entry)
     identify_btn = JouleIdentifyButton(coord, entry)
@@ -165,7 +248,9 @@ async def test_buttons(test_setup):
     await clear_btn.async_press()
     mock_client.clear_errors.assert_called_once()
 
-    mock_client.start_key_exchange = AsyncMock(return_value=MagicMock(secret_key=b"1234"))
+    mock_client.start_key_exchange = AsyncMock(
+        return_value=MagicMock(secret_key=b"1234")
+    )
     await pair_btn.async_press()
     mock_client.start_key_exchange.assert_called_once()
 
@@ -173,7 +258,7 @@ async def test_buttons(test_setup):
 @pytest.mark.asyncio
 async def test_number_and_switch(test_setup):
     """Test cook time number and auto start switch."""
-    coord, entry, hass, mock_client = test_setup
+    coord, entry, hass, _mock_client = test_setup
 
     num = JouleCookTimeNumber(coord, entry)
     assert num.native_value == 60.0

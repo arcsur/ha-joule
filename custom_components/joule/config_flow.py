@@ -132,9 +132,7 @@ class JouleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         ble_device = self._discovery_info.device
         parser = JouleBluetoothDeviceData()
-        disc_device_info = parser.update(
-            ble_device, self._discovery_info.advertisement
-        )
+        disc_device_info = parser.update(ble_device, self._discovery_info.advertisement)
         recipient_addr = (
             disc_device_info.recipient_address
             if disc_device_info and disc_device_info.recipient_address
@@ -163,7 +161,7 @@ class JouleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             if dev_info is None or not dev_info.serial_number:
                 try:
                     dev_info = await client.identify()
-                except Exception as ident_err2:
+                except Exception as ident_err2:  # noqa: BLE001
                     _LOGGER.warning(
                         "Post-auth identify query skipped or timed out: %s", ident_err2
                     )
@@ -206,8 +204,8 @@ class JouleConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors["base"] = "cannot_connect"
         except JouleAuthenticationError:
             errors["base"] = "pairing_timeout"
-        except Exception as err:
-            _LOGGER.exception("Unexpected error during Joule pairing: %s", err)
+        except Exception:
+            _LOGGER.exception("Unexpected error during Joule pairing")
             errors["base"] = "unknown"
         finally:
             if client.is_connected:

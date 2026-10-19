@@ -35,9 +35,7 @@ async def async_setup_entry(
     )
 
 
-class JouleFoodAddedButton(
-    CoordinatorEntity[JouleDataUpdateCoordinator], ButtonEntity
-):
+class JouleFoodAddedButton(CoordinatorEntity[JouleDataUpdateCoordinator], ButtonEntity):
     """Button to confirm food has been dropped and start timer countdown."""
 
     _attr_has_entity_name = True
@@ -68,9 +66,7 @@ class JouleFoodAddedButton(
         await self.coordinator.async_drop_food()
 
 
-class JouleIdentifyButton(
-    CoordinatorEntity[JouleDataUpdateCoordinator], ButtonEntity
-):
+class JouleIdentifyButton(CoordinatorEntity[JouleDataUpdateCoordinator], ButtonEntity):
     """Button to flash Joule LED and identify device."""
 
     _attr_has_entity_name = True
@@ -121,9 +117,7 @@ class JouleClearErrorButton(
         await self.coordinator.async_clear_errors()
 
 
-class JoulePairButton(
-    CoordinatorEntity[JouleDataUpdateCoordinator], ButtonEntity
-):
+class JoulePairButton(CoordinatorEntity[JouleDataUpdateCoordinator], ButtonEntity):
     """Button to pair Joule via BLE key exchange."""
 
     _attr_has_entity_name = True

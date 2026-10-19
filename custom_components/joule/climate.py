@@ -60,11 +60,17 @@ class JouleClimate(CoordinatorEntity[JouleDataUpdateCoordinator], ClimateEntity)
         self._attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT]
         self._attr_unique_id = f"{entry.data['address']}_climate"
         self._attr_target_temperature: float = DEFAULT_TARGET_TEMP_C
+        is_breville = (
+            coordinator.client.is_breville_profile
+            or "turbo" in str(entry.data.get("model", "")).lower()
+        )
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.data["address"])},
             name=entry.data.get("name", "Joule"),
-            manufacturer="ChefSteps / Breville",
-            model=entry.data.get("model", "Joule"),
+            manufacturer="Breville" if is_breville else "ChefSteps",
+            model=entry.data.get(
+                "model", "Joule Turbo" if is_breville else "Original Joule"
+            ),
             sw_version=entry.data.get("firmware_version"),
             hw_version=entry.data.get("hardware_version"),
         )
