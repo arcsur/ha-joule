@@ -101,3 +101,12 @@ uv run --extra dev mypy src/joule_ble
 # Run test suite
 uv run --extra dev pytest tests/ -v
 ```
+
+### 14. Graceful Offline Handling & Dynamic Availability Tracking
+- **Never raise `ConfigEntryNotReady` when the circulator is unavailable at startup**: When the Joule is unplugged or powered off, `bluetooth.async_ble_device_from_address` returns `None`. Instead of failing setup and blocking entity loading, initialize with a fallback `BLEDevice(address, name, None)` so Home Assistant loads all platforms cleanly (`climate`, `sensor`, `binary_sensor`, `button`, `number`, `switch`), keeping entity IDs, dashboard cards, and automations intact.
+- **Dynamic Entity Availability**: All hardware telemetry and control entities inherit `JouleEntity` and follow `coordinator.available`:
+  - Returns `True` when actively connected over BLE (`client.is_connected`), OR when cleanly idle-disconnected (`_was_idle_disconnected`) and the device is actively advertising in range (`bluetooth.async_address_present`).
+  - Returns `False` when the device is unplugged, powered off, or disconnected unexpectedly. Entities transition smoothly to `unavailable` in Lovelace.
+  - Software settings (`target_cook_time`, `auto_start_timer`) remain available at all times so users can configure settings prior to plugging in.
+- **Automatic Reconnection on Advertisement**: Register `bluetooth.async_register_callback` and `bluetooth.async_track_unavailable`. When the circulator is plugged in and begins broadcasting BLE advertisements, the coordinator automatically reconnects in the background, starts the live cook data feed, and transitions all entities from `unavailable` to live data without requiring an integration reload.
+

@@ -22,13 +22,12 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from joule_ble import CookState, JouleModel
 
 from .const import DOMAIN
 from .coordinator import JouleDataUpdateCoordinator
+from .entity import JouleEntity
 
 COMMON_SENSOR_DESCRIPTIONS: tuple[SensorEntityDescription, ...] = (
     SensorEntityDescription(
@@ -152,10 +151,8 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class JouleSensor(CoordinatorEntity[JouleDataUpdateCoordinator], SensorEntity):
+class JouleSensor(JouleEntity, SensorEntity):
     """Generic telemetry or status sensor for Joule."""
-
-    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -164,23 +161,9 @@ class JouleSensor(CoordinatorEntity[JouleDataUpdateCoordinator], SensorEntity):
         description: SensorEntityDescription,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, entry)
         self.entity_description = description
         self._attr_unique_id = f"{entry.data['address']}_{description.key}"
-
-        is_breville = (
-            coordinator.client.is_breville_profile
-            or entry.data.get("model") == JouleModel.JOULE_TURBO
-            or "turbo" in str(entry.data.get("model", "")).lower()
-        )
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.data["address"])},
-            name=entry.data.get("name", "Joule"),
-            manufacturer="Breville" if is_breville else "ChefSteps",
-            model=entry.data.get(
-                "model", "Joule Turbo" if is_breville else "Original Joule"
-            ),
-        )
 
     @property
     def native_value(self) -> Any:
@@ -222,12 +205,9 @@ class JouleSensor(CoordinatorEntity[JouleDataUpdateCoordinator], SensorEntity):
         return None
 
 
-class JouleCookFinishTimeSensor(
-    CoordinatorEntity[JouleDataUpdateCoordinator], SensorEntity
-):
+class JouleCookFinishTimeSensor(JouleEntity, SensorEntity):
     """Timestamp sensor for when cooking finishes, enabling live Lovelace countdowns."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "cook_finish_time"
     _attr_device_class = SensorDeviceClass.TIMESTAMP
 
@@ -235,21 +215,8 @@ class JouleCookFinishTimeSensor(
         self, coordinator: JouleDataUpdateCoordinator, entry: ConfigEntry
     ) -> None:
         """Initialize the timestamp sensor."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, entry)
         self._attr_unique_id = f"{entry.data['address']}_cook_finish_time"
-        is_breville = (
-            coordinator.client.is_breville_profile
-            or entry.data.get("model") == JouleModel.JOULE_TURBO
-            or "turbo" in str(entry.data.get("model", "")).lower()
-        )
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.data["address"])},
-            name=entry.data.get("name", "Joule"),
-            manufacturer="Breville" if is_breville else "ChefSteps",
-            model=entry.data.get(
-                "model", "Joule Turbo" if is_breville else "Original Joule"
-            ),
-        )
 
     @property
     def native_value(self) -> datetime | None:

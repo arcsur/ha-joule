@@ -6,12 +6,11 @@ from homeassistant.components.number import NumberEntity, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTime
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import JouleDataUpdateCoordinator
+from .entity import JouleEntity
 
 
 async def async_setup_entry(
@@ -24,10 +23,9 @@ async def async_setup_entry(
     async_add_entities([JouleCookTimeNumber(coordinator, entry)])
 
 
-class JouleCookTimeNumber(CoordinatorEntity[JouleDataUpdateCoordinator], NumberEntity):
+class JouleCookTimeNumber(JouleEntity, NumberEntity):
     """Input number entity for target cook time in minutes."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "target_cook_time"
     _attr_native_min_value = 1
     _attr_native_max_value = 4320  # 72 hours
@@ -39,13 +37,13 @@ class JouleCookTimeNumber(CoordinatorEntity[JouleDataUpdateCoordinator], NumberE
         self, coordinator: JouleDataUpdateCoordinator, entry: ConfigEntry
     ) -> None:
         """Initialize number entity."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, entry)
         self._attr_unique_id = f"{entry.data['address']}_target_cook_time"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.data["address"])},
-            name=entry.data.get("name", "Joule"),
-            manufacturer="ChefSteps / Breville",
-        )
+
+    @property
+    def available(self) -> bool:
+        """Cook time configuration is always available in software."""
+        return True
 
     @property
     def native_value(self) -> float:

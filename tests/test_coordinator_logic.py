@@ -145,3 +145,68 @@ async def test_coordinator_persistent_notification_and_dismissal(mock_joule_clie
 
     # Verify clear_errors was called on client
     mock_joule_client.clear_errors.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_coordinator_availability_lifecycle(mock_joule_client):
+    """Test coordinator.available under connected, idle-disconnected, and unavailable states."""
+    from homeassistant.components import bluetooth
+
+    hass = MagicMock()
+    entry = MagicMock()
+    entry.entry_id = "test_entry"
+    entry.data = {"address": "AA:BB:CC:DD:EE:FF"}
+    entry.options = {}
+
+    ble_device = MagicMock()
+    ble_device.address = "AA:BB:CC:DD:EE:FF"
+
+    coord = JouleDataUpdateCoordinator(hass, entry, mock_joule_client, ble_device)
+
+    # 1. Connected -> available is True
+    mock_joule_client.is_connected = True
+    assert coord.available is True
+
+    # 2. Idle disconnected, but still in Bluetooth range -> available is True
+    mock_joule_client.is_connected = False
+    coord._was_idle_disconnected = True
+    bluetooth.async_address_present.return_value = True
+    assert coord.available is True
+
+    # 3. Idle disconnected, and out of range / unplugged -> available is False
+    bluetooth.async_address_present.return_value = False
+    assert coord.available is False
+
+    # 4. Unexpected disconnect (not idle disconnected) -> available is False
+    coord._was_idle_disconnected = False
+    bluetooth.async_address_present.return_value = True
+    assert coord.available is False
+
+
+@pytest.mark.asyncio
+async def test_coordinator_advertisement_auto_connect(mock_joule_client):
+    """Test coordinator triggers connection when advertisement arrives and device is not connected."""
+    hass = MagicMock()
+    hass.async_create_task = MagicMock()
+
+    entry = MagicMock()
+    entry.entry_id = "test_entry"
+    entry.data = {"address": "AA:BB:CC:DD:EE:FF"}
+    entry.options = {}
+
+    ble_device = MagicMock()
+    ble_device.address = "AA:BB:CC:DD:EE:FF"
+
+    coord = JouleDataUpdateCoordinator(hass, entry, mock_joule_client, ble_device)
+    mock_joule_client.is_connected = False
+    coord.data = None  # Never received data
+
+    service_info = MagicMock()
+    service_info.device = ble_device
+    service_info.manufacturer_data = {345: b"\x01\x11\x22\x33\x44\x55\x66\x77\x88"}
+
+    coord._async_handle_bluetooth_event(service_info, MagicMock())
+
+    # Verify background connection was scheduled
+    assert hass.async_create_task.called
+    assert coord.client._recipient_address == b"\x11\x22\x33\x44\x55\x66\x77\x88"

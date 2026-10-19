@@ -10,12 +10,11 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import JouleDataUpdateCoordinator
+from .entity import JouleEntity
 
 BINARY_SENSOR_DESCRIPTIONS: tuple[BinarySensorEntityDescription, ...] = (
     BinarySensorEntityDescription(
@@ -53,12 +52,8 @@ async def async_setup_entry(
     )
 
 
-class JouleBinarySensor(
-    CoordinatorEntity[JouleDataUpdateCoordinator], BinarySensorEntity
-):
+class JouleBinarySensor(JouleEntity, BinarySensorEntity):
     """Representation of a Joule binary status sensor."""
-
-    _attr_has_entity_name = True
 
     def __init__(
         self,
@@ -67,14 +62,9 @@ class JouleBinarySensor(
         description: BinarySensorEntityDescription,
     ) -> None:
         """Initialize the binary sensor."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, entry)
         self.entity_description = description
         self._attr_unique_id = f"{entry.data['address']}_{description.key}"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.data["address"])},
-            name=entry.data.get("name", "Joule"),
-            manufacturer="ChefSteps / Breville",
-        )
 
     @property
     def is_on(self) -> bool:

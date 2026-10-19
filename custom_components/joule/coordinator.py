@@ -18,6 +18,7 @@ from joule_ble import (
     CookState,
     ErrorState,
     JouleClient,
+    JouleConnectionError,
     JouleState,
 )
 
@@ -68,9 +69,11 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
 
         self._previous_step: CookState = CookState.IDLE
         self._previous_low_water: bool = False
+        self._was_idle_disconnected: bool = False
         self._idle_timer_cancel: CALLBACK_TYPE | None = None
         self._unsubscribe_client_callbacks: CALLBACK_TYPE | None = None
         self._unsubscribe_bluetooth: CALLBACK_TYPE | None = None
+        self._unsubscribe_unavailable: CALLBACK_TYPE | None = None
         self._unsubscribe_service_call: CALLBACK_TYPE | None = None
         self._notification_id: str = f"joule_error_{self.address.replace(':', '_')}"
         self._notification_active: bool = False
@@ -78,6 +81,18 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
         # Register client callback
         self._unsubscribe_client_callbacks = self.client.register_callback(
             self._handle_client_update
+        )
+
+    @property
+    def available(self) -> bool:
+        """Return True if the Joule device is currently available."""
+        if self.client.is_connected:
+            return True
+        return bool(
+            self._was_idle_disconnected
+            and bluetooth.async_address_present(
+                self.hass, self.address, connectable=True
+            )
         )
 
     @property
@@ -107,6 +122,14 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
             bluetooth.BluetoothScanningMode.ACTIVE,
         )
 
+        if hasattr(bluetooth, "async_track_unavailable"):
+            self._unsubscribe_unavailable = bluetooth.async_track_unavailable(
+                self.hass,
+                self._async_handle_bluetooth_unavailable,
+                self.address,
+                connectable=True,
+            )
+
         @callback
         def _async_handle_service_call(event: Any) -> None:
             data = getattr(event, "data", {})
@@ -131,8 +154,10 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
             try:
                 await self.async_ensure_connected()
             except Exception as err:  # noqa: BLE001
-                _LOGGER.warning(
-                    "Initial connection to Joule (%s) deferred: %s", self.address, err
+                _LOGGER.info(
+                    "Initial connection to Joule (%s) deferred (device currently unavailable): %s",
+                    self.address,
+                    err,
                 )
 
         self.hass.async_create_task(_initial_connect())
@@ -150,6 +175,28 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
             mfg = service_info.manufacturer_data[345]
             if len(mfg) > 1:
                 self.client._recipient_address = mfg[1:]
+
+        # If not connected and we have never received data or were disconnected unexpectedly,
+        # connect now to begin streaming telemetry
+        if not self.client.is_connected and (
+            self.data is None or not self._was_idle_disconnected
+        ):
+            _LOGGER.debug(
+                "Joule (%s) advertisement detected; connecting in background",
+                self.address,
+            )
+            self.hass.async_create_task(self.async_ensure_connected())
+
+        self.async_update_listeners()
+
+    @callback
+    def _async_handle_bluetooth_unavailable(
+        self,
+        service_info: bluetooth.BluetoothServiceInfoBleak,
+    ) -> None:
+        """Handle device no longer being seen by Bluetooth scanner."""
+        _LOGGER.debug("Joule (%s) is no longer seen by Bluetooth scanner", self.address)
+        self.async_update_listeners()
 
     @callback
     def _handle_client_update(self, state: JouleState) -> None:
@@ -255,6 +302,8 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
             return
         if self.idle_timeout_seconds <= 0:
             return
+        if not self.client.is_connected:
+            return
 
         @callback
         def _execute_disconnect(_now: datetime) -> None:
@@ -265,6 +314,7 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
                     self.address,
                     self.idle_timeout_seconds,
                 )
+                self._was_idle_disconnected = True
                 self.hass.async_create_task(self.client.disconnect())
 
         self._idle_timer_cancel = async_call_later(
@@ -280,6 +330,7 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
     async def async_ensure_connected(self) -> None:
         """Ensure active connection to the Joule exists before issuing commands."""
         self._cancel_idle_disconnect()
+        self._was_idle_disconnected = False
         if not self.client.is_connected:
             _LOGGER.debug("Connecting to Joule (%s)...", self.address)
             # Fetch latest BLEDevice from HA Bluetooth
@@ -289,6 +340,12 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
             if ble_dev:
                 self._ble_device = ble_dev
                 self.client._ble_device = ble_dev
+            elif not bluetooth.async_address_present(
+                self.hass, self.address, connectable=True
+            ):
+                raise JouleConnectionError(
+                    f"Joule circulator ({self.address}) is not currently advertising or in range"
+                )
 
             await self.client.connect()
 
@@ -409,5 +466,8 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
         if self._unsubscribe_bluetooth:
             self._unsubscribe_bluetooth()
             self._unsubscribe_bluetooth = None
+        if self._unsubscribe_unavailable:
+            self._unsubscribe_unavailable()
+            self._unsubscribe_unavailable = None
         if self.client.is_connected:
             await self.client.disconnect()

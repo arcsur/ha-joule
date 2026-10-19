@@ -8,12 +8,11 @@ from homeassistant.components.switch import SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_AUTO_START_TIMER, DOMAIN
 from .coordinator import JouleDataUpdateCoordinator
+from .entity import JouleEntity
 
 
 async def async_setup_entry(
@@ -26,12 +25,9 @@ async def async_setup_entry(
     async_add_entities([JouleAutoStartTimerSwitch(coordinator, entry)])
 
 
-class JouleAutoStartTimerSwitch(
-    CoordinatorEntity[JouleDataUpdateCoordinator], SwitchEntity
-):
+class JouleAutoStartTimerSwitch(JouleEntity, SwitchEntity):
     """Switch to toggle auto-starting the timer when water reaches temperature."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "auto_start_timer"
     _attr_entity_category = EntityCategory.CONFIG
 
@@ -39,13 +35,13 @@ class JouleAutoStartTimerSwitch(
         self, coordinator: JouleDataUpdateCoordinator, entry: ConfigEntry
     ) -> None:
         """Initialize switch."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, entry)
         self._attr_unique_id = f"{entry.data['address']}_auto_start_timer"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.data["address"])},
-            name=entry.data.get("name", "Joule"),
-            manufacturer="ChefSteps / Breville",
-        )
+
+    @property
+    def available(self) -> bool:
+        """Auto-start timer setting is always available in software."""
+        return True
 
     @property
     def is_on(self) -> bool:

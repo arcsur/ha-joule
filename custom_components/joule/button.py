@@ -9,13 +9,12 @@ from homeassistant.components.button import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from joule_ble import CookState
 
 from .const import DOMAIN
 from .coordinator import JouleDataUpdateCoordinator
+from .entity import JouleEntity
 
 
 async def async_setup_entry(
@@ -35,29 +34,24 @@ async def async_setup_entry(
     )
 
 
-class JouleFoodAddedButton(CoordinatorEntity[JouleDataUpdateCoordinator], ButtonEntity):
+class JouleFoodAddedButton(JouleEntity, ButtonEntity):
     """Button to confirm food has been dropped and start timer countdown."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "food_added"
 
     def __init__(
         self, coordinator: JouleDataUpdateCoordinator, entry: ConfigEntry
     ) -> None:
         """Initialize button."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, entry)
         self._attr_unique_id = f"{entry.data['address']}_food_added"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.data["address"])},
-            name=entry.data.get("name", "Joule"),
-            manufacturer="ChefSteps / Breville",
-        )
 
     @property
     def available(self) -> bool:
-        """Available only when waiting for food."""
+        """Available only when coordinator is available and waiting for food."""
         return (
-            self.coordinator.data is not None
+            super().available
+            and self.coordinator.data is not None
             and self.coordinator.data.program_step == CookState.WAITING_FOR_FOOD
         )
 
@@ -66,10 +60,9 @@ class JouleFoodAddedButton(CoordinatorEntity[JouleDataUpdateCoordinator], Button
         await self.coordinator.async_drop_food()
 
 
-class JouleIdentifyButton(CoordinatorEntity[JouleDataUpdateCoordinator], ButtonEntity):
+class JouleIdentifyButton(JouleEntity, ButtonEntity):
     """Button to flash Joule LED and identify device."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "identify"
     _attr_device_class = ButtonDeviceClass.IDENTIFY
     _attr_entity_category = EntityCategory.DIAGNOSTIC
@@ -78,25 +71,17 @@ class JouleIdentifyButton(CoordinatorEntity[JouleDataUpdateCoordinator], ButtonE
         self, coordinator: JouleDataUpdateCoordinator, entry: ConfigEntry
     ) -> None:
         """Initialize button."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, entry)
         self._attr_unique_id = f"{entry.data['address']}_identify"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.data["address"])},
-            name=entry.data.get("name", "Joule"),
-            manufacturer="ChefSteps / Breville",
-        )
 
     async def async_press(self) -> None:
         """Trigger identify."""
         await self.coordinator.async_identify()
 
 
-class JouleClearErrorButton(
-    CoordinatorEntity[JouleDataUpdateCoordinator], ButtonEntity
-):
+class JouleClearErrorButton(JouleEntity, ButtonEntity):
     """Button to clear software error condition."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "clear_error"
     _attr_entity_category = EntityCategory.CONFIG
 
@@ -104,23 +89,17 @@ class JouleClearErrorButton(
         self, coordinator: JouleDataUpdateCoordinator, entry: ConfigEntry
     ) -> None:
         """Initialize button."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, entry)
         self._attr_unique_id = f"{entry.data['address']}_clear_error"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.data["address"])},
-            name=entry.data.get("name", "Joule"),
-            manufacturer="ChefSteps / Breville",
-        )
 
     async def async_press(self) -> None:
         """Clear errors."""
         await self.coordinator.async_clear_errors()
 
 
-class JoulePairButton(CoordinatorEntity[JouleDataUpdateCoordinator], ButtonEntity):
+class JoulePairButton(JouleEntity, ButtonEntity):
     """Button to pair Joule via BLE key exchange."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "pair"
     _attr_entity_category = EntityCategory.CONFIG
 
@@ -128,13 +107,8 @@ class JoulePairButton(CoordinatorEntity[JouleDataUpdateCoordinator], ButtonEntit
         self, coordinator: JouleDataUpdateCoordinator, entry: ConfigEntry
     ) -> None:
         """Initialize button."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, entry)
         self._attr_unique_id = f"{entry.data['address']}_pair"
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.data["address"])},
-            name=entry.data.get("name", "Joule"),
-            manufacturer="ChefSteps / Breville",
-        )
 
     async def async_press(self) -> None:
         """Trigger pairing."""

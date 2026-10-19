@@ -14,9 +14,7 @@ from homeassistant.components.climate import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     DEFAULT_TARGET_TEMP_C,
@@ -25,6 +23,7 @@ from .const import (
     MIN_TEMP_C,
 )
 from .coordinator import JouleDataUpdateCoordinator
+from .entity import JouleEntity
 
 
 async def async_setup_entry(
@@ -37,10 +36,9 @@ async def async_setup_entry(
     async_add_entities([JouleClimate(coordinator, entry)])
 
 
-class JouleClimate(CoordinatorEntity[JouleDataUpdateCoordinator], ClimateEntity):
+class JouleClimate(JouleEntity, ClimateEntity):
     """Representation of the Joule Sous Vide immersion circulator as a Climate entity."""
 
-    _attr_has_entity_name = True
     _attr_translation_key = "circulator"
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
     _attr_min_temp = MIN_TEMP_C
@@ -56,24 +54,10 @@ class JouleClimate(CoordinatorEntity[JouleDataUpdateCoordinator], ClimateEntity)
         self, coordinator: JouleDataUpdateCoordinator, entry: ConfigEntry
     ) -> None:
         """Initialize the climate entity."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, entry)
         self._attr_hvac_modes = [HVACMode.OFF, HVACMode.HEAT]
         self._attr_unique_id = f"{entry.data['address']}_climate"
         self._attr_target_temperature: float = DEFAULT_TARGET_TEMP_C
-        is_breville = (
-            coordinator.client.is_breville_profile
-            or "turbo" in str(entry.data.get("model", "")).lower()
-        )
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.data["address"])},
-            name=entry.data.get("name", "Joule"),
-            manufacturer="Breville" if is_breville else "ChefSteps",
-            model=entry.data.get(
-                "model", "Joule Turbo" if is_breville else "Original Joule"
-            ),
-            sw_version=entry.data.get("firmware_version"),
-            hw_version=entry.data.get("hardware_version"),
-        )
 
     @property
     def hvac_mode(self) -> HVACMode:

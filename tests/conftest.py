@@ -210,6 +210,8 @@ def _setup_stubs() -> None:
     ha_bt.async_register_callback = MagicMock(return_value=lambda: None)
     ha_bt.async_ble_device_from_address = MagicMock(return_value=None)
     ha_bt.async_discovered_service_info = MagicMock(return_value=[])
+    ha_bt.async_address_present = MagicMock(return_value=True)
+    ha_bt.async_track_unavailable = MagicMock(return_value=lambda: None)
     ha_comp.bluetooth = ha_bt
     sys.modules["homeassistant.components.bluetooth"] = ha_bt
 
@@ -232,6 +234,10 @@ def _setup_stubs() -> None:
 
         def async_set_updated_data(self, data):
             self.data = data
+            for listener in list(self.listeners):
+                listener()
+
+        def async_update_listeners(self):
             for listener in list(self.listeners):
                 listener()
 

@@ -1,10 +1,10 @@
-"""Test coordinator commands call underlying JouleClient properly."""
-
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from joule_ble import CookState, ErrorState
 
+from custom_components.joule import async_setup_entry
+from custom_components.joule.const import DOMAIN, PLATFORMS
 from custom_components.joule.coordinator import JouleDataUpdateCoordinator
 
 
@@ -54,3 +54,41 @@ async def test_coordinator_commands(mock_joule_client):
         # identify
         await coord.async_identify()
         mock_joule_client.identify.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_device_unavailable():
+    """Verify integration gracefully loads when Joule Bluetooth device is unavailable."""
+    hass = MagicMock()
+    hass.data = {}
+    hass.config_entries.async_forward_entry_setups = AsyncMock(return_value=True)
+
+    entry = MagicMock()
+    entry.entry_id = "test_entry_id"
+    entry.data = {
+        "address": "AA:BB:CC:DD:EE:FF",
+        "name": "DagusJoule",
+        "auth_key": "1234567812345678",
+    }
+    entry.options = {}
+    entry.async_on_unload = MagicMock()
+
+    with (
+        patch(
+            "homeassistant.components.bluetooth.async_ble_device_from_address",
+            return_value=None,
+        ),
+        patch(
+            "custom_components.joule.services.async_setup_services",
+            new=AsyncMock(),
+        ),
+    ):
+        result = await async_setup_entry(hass, entry)
+        assert result is True
+        assert entry.entry_id in hass.data[DOMAIN]
+        coord = hass.data[DOMAIN][entry.entry_id]
+        assert coord.address == "AA:BB:CC:DD:EE:FF"
+        assert coord.available is False
+        hass.config_entries.async_forward_entry_setups.assert_awaited_once_with(
+            entry, PLATFORMS
+        )

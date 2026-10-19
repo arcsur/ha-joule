@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "ha-joule"
-version = "1.0.0"
+version = "1.0.1"
 description = "Home Assistant integration for ChefSteps and Breville Joule sous vide immersion circulators"
 readme = "README.md"
 requires-python = ">=3.11"

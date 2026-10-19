@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import logging
 
+from bleak.backends.device import BLEDevice
 from homeassistant.components import bluetooth
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ADDRESS
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
 from joule_ble import JouleAuthData, JouleClient, JouleModel
 
 from .const import CONF_AUTH_SECRET, CONF_AUTH_TOKEN, CONF_MODEL, DOMAIN, PLATFORMS
@@ -26,8 +26,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     if not ble_device:
-        raise ConfigEntryNotReady(
-            f"Could not find Joule Bluetooth device with address {address}"
+        _LOGGER.debug(
+            "Joule (%s) not found in current Bluetooth scan; initializing with placeholder BLEDevice",
+            address,
+        )
+        ble_device = BLEDevice(
+            address,
+            entry.data.get("name", "Joule"),
+            None,
         )
 
     secret_raw = entry.data.get("auth_key") or entry.data.get(CONF_AUTH_SECRET)
