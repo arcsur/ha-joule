@@ -61,12 +61,17 @@
 ### 8. Tolerant State Handling on Stop and Clear Errors
 - Sending `StopCirculatorRequest` to an idle or already-stopped circulator returns `CS_ERROR_INVALID_STATE` (code 8). Treat this as success.
 - Sending `ClearErrorRequest` when no hardware fault is active returns `CS_ERROR_INVALID_STATE` (code 8), `CS_ERROR_INTERNAL` (code 3), or `CS_ERROR_NOT_FOUND` (code 5). Treat these as successful no-ops.
-- Proactively call `clear_errors()` before `start_cook()` when an error state was active (e.g. low water level that has been refilled) so the circulator firmware accepts the new program.
+- Pre-flight State Hygiene: ChefSteps firmware rejects `StartProgramRequest` with `CS_ERROR_INVALID_STATE` (code 8) if the circulator is non-idle (e.g. already cooking or halted in `CookState.ERROR`). Proactively call `stop_cook()` and `clear_errors()` before `start_cook()` to return the hardware state machine to `IDLE`.
+- Recovery Retry on Code 8: In `start_cook()`, if the firmware still returns `CS_ERROR_INVALID_STATE` (code 8), attempt automatic recovery by sending `StopCirculatorRequest` and retrying `StartProgramRequest` once with an updated handle and sequence number.
 
 ### 9. Climate Entity Setpoint & Mode Orchestration
 - Maintain a separate local setpoint `_attr_target_temperature` on the climate entity. Changing the setpoint dial while `hvac_mode` is `off` must update the setpoint without prematurely starting cook commands.
 - Only initiate `start_cook` from `async_set_temperature` if `hvac_mode == HEAT` is explicitly passed in `kwargs`.
-- Guard `async_set_hvac_mode(HEAT)`: if the circulator is already actively cooking or starting, treat subsequent mode calls as a no-op to prevent duplicate command collisions resulting in `CS_ERROR_INVALID_STATE` (code 8).
+- Guard `async_set_hvac_mode(HEAT)`: if the circulator is already actively cooking or starting (`self.coordinator.is_cooking`), treat subsequent mode calls as a no-op to prevent duplicate command collisions resulting in `CS_ERROR_INVALID_STATE` (code 8).
+- Synchronous Coordinator State Updates: Call `self.async_set_updated_data(self.client.state)` immediately after `start_cook()`, `stop_cook()`, `set_temperature()`, `clear_errors()`, and `drop_food()` so that Home Assistant entities synchronously observe state changes before sequential service calls execute.
+- Redundant Update Avoidance: In `set_temperature()`, if the bath is already cooking at the requested target temperature, avoid redundant BLE writes.
+- Unconditional Stop on OFF: In `async_set_hvac_mode(OFF)`, call `async_stop_cook()` unconditionally without gating on `is_cooking`, enabling users to turn off and reset the circulator even when halted in `ERROR` state.
+- Register explicit `joule.stop_cook` service alongside `joule.start_cook`.
 
 ### 10. Config Flow Pairing & Proximity Verification
 - Always prompt the user before initiating `start_key_exchange(timeout=30.0)` so they are aware that the Joule's LED will flash and they have 30 seconds to physically press the top button.
