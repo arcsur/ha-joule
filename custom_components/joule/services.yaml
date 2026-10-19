@@ -50,6 +50,17 @@ start_cook:
           max: 98
           unit_of_measurement: "°C"
 
+stop_cook:
+  name: Stop Cook
+  description: Stops heating and circulating.
+  fields:
+    device_id:
+      name: Device
+      description: The Joule device to stop.
+      selector:
+        device:
+          integration: joule
+
 drop_food:
   name: Food Added (Start Timer)
   description: Confirms food has been added to the preheated water bath and begins the cook timer countdown.

@@ -72,16 +72,16 @@ class JouleClimate(CoordinatorEntity[JouleDataUpdateCoordinator], ClimateEntity)
     @property
     def hvac_mode(self) -> HVACMode:
         """Return current HVAC mode."""
-        if self.coordinator.data and self.coordinator.data.is_cooking:
+        if self.coordinator.is_cooking:
             return HVACMode.HEAT
         return HVACMode.OFF
 
     @property
     def hvac_action(self) -> HVACAction | None:
         """Return the current running HVAC action."""
-        if not self.coordinator.data or not self.coordinator.data.is_cooking:
+        if not self.coordinator.is_cooking:
             return HVACAction.OFF
-        if self.coordinator.data.is_heating:
+        if self.coordinator.data and self.coordinator.data.is_heating:
             return HVACAction.HEATING
         return HVACAction.IDLE
 
@@ -105,14 +105,16 @@ class JouleClimate(CoordinatorEntity[JouleDataUpdateCoordinator], ClimateEntity)
         if temp is None:
             return
 
-        self._attr_target_temperature = float(temp)
+        target_temp = float(temp)
+        self._attr_target_temperature = target_temp
         hvac_mode = kwargs.get(ATTR_HVAC_MODE)
 
-        if self.coordinator.data and self.coordinator.data.is_cooking:
-            await self.coordinator.async_set_temperature(float(temp))
+        if self.coordinator.is_cooking:
+            if self.target_temperature != target_temp:
+                await self.coordinator.async_set_temperature(target_temp)
         elif hvac_mode == HVACMode.HEAT:
             await self.coordinator.async_start_cook(
-                target_temp_c=float(temp),
+                target_temp_c=target_temp,
                 cook_time_minutes=self.coordinator.target_cook_time_minutes,
             )
         self.async_write_ha_state()
@@ -120,7 +122,7 @@ class JouleClimate(CoordinatorEntity[JouleDataUpdateCoordinator], ClimateEntity)
     async def async_set_hvac_mode(self, hvac_mode: HVACMode) -> None:
         """Set new operation mode."""
         if hvac_mode == HVACMode.HEAT:
-            if self.coordinator.data and self.coordinator.data.is_cooking:
+            if self.coordinator.is_cooking:
                 return
             target = (
                 self.coordinator.data.target_temp_c
@@ -132,8 +134,7 @@ class JouleClimate(CoordinatorEntity[JouleDataUpdateCoordinator], ClimateEntity)
                 cook_time_minutes=self.coordinator.target_cook_time_minutes,
             )
         elif hvac_mode == HVACMode.OFF:
-            if self.coordinator.data and self.coordinator.data.is_cooking:
-                await self.coordinator.async_stop_cook()
+            await self.coordinator.async_stop_cook()
 
     async def async_turn_on(self) -> None:
         """Turn on circulator."""

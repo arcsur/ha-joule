@@ -45,6 +45,7 @@ EVENT_LOW_WATER = f"{DOMAIN}_low_water"
 
 # Services
 SERVICE_START_COOK = "start_cook"
+SERVICE_STOP_COOK = "stop_cook"
 SERVICE_DROP_FOOD = "drop_food"
 SERVICE_CLEAR_ERROR = "clear_error"
 SERVICE_IDENTIFY = "identify"

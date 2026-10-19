@@ -80,6 +80,24 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
             self._handle_client_update
         )
 
+    @property
+    def is_cooking(self) -> bool:
+        """Return True if device is actively cooking."""
+        if self.data and hasattr(self.data, "is_cooking"):
+            return bool(self.data.is_cooking)
+        if hasattr(self.client, "state") and hasattr(self.client.state, "is_cooking"):
+            return bool(self.client.state.is_cooking)
+        return False
+
+    @property
+    def has_error(self) -> bool:
+        """Return True if device is in an error condition."""
+        if self.data and hasattr(self.data, "has_error"):
+            return bool(self.data.has_error)
+        if hasattr(self.client, "state") and hasattr(self.client.state, "has_error"):
+            return bool(self.client.state.has_error)
+        return False
+
     async def async_setup(self) -> None:
         """Set up Bluetooth callbacks and initial connection."""
         self._unsubscribe_bluetooth = bluetooth.async_register_callback(
@@ -273,12 +291,17 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
     ) -> None:
         """Start cooking program."""
         await self.async_ensure_connected()
-        if self.client.state.has_error:
+        if self.client.state.has_error or self.is_cooking:
             _LOGGER.info(
-                "Joule (%s) reported active error state (%s); clearing errors before starting cook",
+                "Joule (%s) in step %s (error=%s); resetting circulator before starting cook",
                 self.address,
+                self.client.state.program_step.value,
                 self.client.state.error_state.value,
             )
+            try:
+                await self.client.stop_cook()
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("Pre-start stop_cook skipped/failed: %s", err)
             try:
                 await self.client.clear_errors()
             except Exception as err:  # noqa: BLE001
@@ -295,29 +318,34 @@ class JouleDataUpdateCoordinator(DataUpdateCoordinator[JouleState]):
             delayed_start_seconds=delayed_start_sec,
             holding_temp_c=holding_temp_c,
         )
+        self.async_set_updated_data(self.client.state)
 
     async def async_set_temperature(self, target_temp_c: float) -> None:
         """Update target temperature setpoint."""
         await self.async_ensure_connected()
         await self.client.set_temperature(target_temp_c)
+        self.async_set_updated_data(self.client.state)
 
     async def async_stop_cook(self) -> None:
         """Stop heating and circulating."""
         await self.async_ensure_connected()
         await self.client.stop_cook()
+        self.async_set_updated_data(self.client.state)
 
     async def async_drop_food(self) -> None:
         """Confirm food added and transition to active timer."""
         await self.async_ensure_connected()
         await self.client.drop_food()
+        self.async_set_updated_data(self.client.state)
 
     async def async_clear_errors(self) -> None:
-        """Clear software error condition."""
+        """Clear software error condition and reset circulator."""
         await self.async_ensure_connected()
         await self.client.clear_errors()
         if self._notification_active:
             self._notification_active = False
             persistent_notification.async_dismiss(self.hass, self._notification_id)
+        self.async_set_updated_data(self.client.state)
 
     async def async_identify(self) -> None:
         """Identify device."""

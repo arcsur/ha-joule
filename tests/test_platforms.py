@@ -95,6 +95,12 @@ async def test_climate_entity(test_setup):
     await climate.async_set_hvac_mode("heat")
     mock_client.start_cook.assert_not_called()
 
+    # Turning off when in error state calls stop_cook cleanly
+    coord.data.program_step = CookState.ERROR
+    mock_client.stop_cook.reset_mock()
+    await climate.async_turn_off()
+    mock_client.stop_cook.assert_called_once()
+
 
 def test_sensor_entities(test_setup):
     """Test telemetry sensors report correct values from state."""

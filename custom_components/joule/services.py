@@ -23,6 +23,7 @@ from .const import (
     SERVICE_IDENTIFY,
     SERVICE_PAIR,
     SERVICE_START_COOK,
+    SERVICE_STOP_COOK,
 )
 from .coordinator import JouleDataUpdateCoordinator
 
@@ -94,6 +95,10 @@ async def async_setup_services(hass: HomeAssistant) -> None:
             holding_temp_c=call.data.get(ATTR_HOLDING_TEMP, 0.0),
         )
 
+    async def handle_stop_cook(call: ServiceCall) -> None:
+        coord = _get_coordinator(hass, call)
+        await coord.async_stop_cook()
+
     async def handle_drop_food(call: ServiceCall) -> None:
         coord = _get_coordinator(hass, call)
         await coord.async_drop_food()
@@ -114,6 +119,9 @@ async def async_setup_services(hass: HomeAssistant) -> None:
         DOMAIN, SERVICE_START_COOK, handle_start_cook, schema=START_COOK_SCHEMA
     )
     hass.services.async_register(
+        DOMAIN, SERVICE_STOP_COOK, handle_stop_cook, schema=DEVICE_ACTION_SCHEMA
+    )
+    hass.services.async_register(
         DOMAIN, SERVICE_DROP_FOOD, handle_drop_food, schema=DEVICE_ACTION_SCHEMA
     )
     hass.services.async_register(
@@ -131,6 +139,7 @@ async def async_unload_services(hass: HomeAssistant) -> None:
     """Unregister services when last entry is unloaded."""
     if not hass.data.get(DOMAIN):
         hass.services.async_remove(DOMAIN, SERVICE_START_COOK)
+        hass.services.async_remove(DOMAIN, SERVICE_STOP_COOK)
         hass.services.async_remove(DOMAIN, SERVICE_DROP_FOOD)
         hass.services.async_remove(DOMAIN, SERVICE_CLEAR_ERROR)
         hass.services.async_remove(DOMAIN, SERVICE_IDENTIFY)
